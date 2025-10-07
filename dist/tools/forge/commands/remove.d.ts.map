@@ -1,0 +1,1 @@
+{"version":3,"file":"remove.d.ts","sourceRoot":"","sources":["../../../../src/tools/forge/commands/remove.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,OAAO,EAAE,MAAM,WAAW,CAAC;AAGpC,OAAO,EAAE,WAAW,EAAE,MAAM,QAAQ,CAAC;AAgBrC,qBAAa,aAAc,SAAQ,WAAW;IAC5C,QAAQ,CAAC,OAAO,EAAE,OAAO,GAAG,OAAO;YAYrB,OAAO;YAkFP,eAAe;IA2B7B,OAAO,CAAC,gBAAgB;YAeV,cAAc;YAwBd,kBAAkB;YA8BlB,YAAY;CAgD3B"}

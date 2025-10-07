@@ -8,7 +8,7 @@
  * Available tools:
  * - faber: Universal AI agent orchestration
  * - codex: Centralized knowledge management
- * - forge: [Coming soon]
+ * - forge: Asset management and project scaffolding
  * - helm: [Coming soon]
  */
 
@@ -16,6 +16,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { createFaberCommand } from './tools/faber';
 import { createCodexCommand } from './tools/codex';
+import { createForgeCommand } from './tools/forge';
 
 // Package information
 const packageJson = require('../package.json');
@@ -31,9 +32,9 @@ program
 // Add tool commands
 program.addCommand(createFaberCommand());
 program.addCommand(createCodexCommand());
+program.addCommand(createForgeCommand());
 
 // Future tools (commented out until available)
-// program.addCommand(createForgeCommand());
 // program.addCommand(createHelmCommand());
 
 // Show help if no tool specified
@@ -58,7 +59,7 @@ async function main() {
       console.log(chalk.gray('\nAvailable tools:'));
       console.log(chalk.gray('  faber  - Universal AI agent orchestration'));
       console.log(chalk.gray('  codex  - Centralized knowledge management'));
-      console.log(chalk.gray('  forge  - [Coming soon]'));
+      console.log(chalk.gray('  forge  - Asset management and project scaffolding'));
       console.log(chalk.gray('  helm   - [Coming soon]'));
       console.log(chalk.gray('\nRun "fractary --help" for more information.'));
       process.exit(1);

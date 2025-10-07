@@ -14,7 +14,7 @@ Fractary CLI is a unified command-line interface that provides access to all Fra
 
 - **🎯 Faber** - Universal AI agent orchestration (write-once, deploy-everywhere)
 - **📚 Codex** - Centralized knowledge management and distribution
-- **⚒️ Forge** - [Coming soon]
+- **⚒️ Forge** - Asset management and project scaffolding
 - **⎈ Helm** - [Coming soon]
 
 ## 📦 Installation
@@ -112,14 +112,60 @@ fractary codex check
 docs/                     # Documentation with frontmatter
 ```
 
-### Other Tools (Coming Soon)
+### Forge (Asset Management & Scaffolding)
+
+Forge provides project scaffolding and ongoing asset management for maintaining consistency across projects.
+
+**List available assets:**
+```bash
+fractary forge list
+```
+
+**Create a new project:**
+```bash
+fractary forge create my-blog --starter fractary/forge-starter-www-astro-blog
+cd my-blog
+```
+
+**Install and deploy bundles:**
+```bash
+# Install a bundle
+fractary forge install fractary/forge-bundle-team-core
+
+# Deploy assets
+fractary forge deploy
+
+# Check project status
+fractary forge status
+```
+
+**Update bundles:**
+```bash
+# Update specific bundle
+fractary forge update team-core
+
+# See what changed
+fractary forge diff team-core
+
+# Validate manifest
+fractary forge validate
+```
+
+**Manage configuration:**
+```bash
+# Add catalog source
+fractary forge config add-catalog https://fractary.github.io/forge-catalog/catalog.json
+
+# View configuration
+fractary forge config show
+
+# Search for assets
+fractary forge search "authentication"
+```
+
+### Helm (Coming Soon)
 
 ```bash
-# Forge
-fractary forge init
-fractary forge create service my-api
-
-# Helm
 fractary helm deploy <env>
 ```
 
@@ -253,6 +299,13 @@ Common functionality shared across all tools reduces duplication.
 - Metadata parsing and validation
 - Routing analysis
 
+### ✅ Complete (Forge)
+- CLI commands (create, install, update, deploy, diff, validate, list, status, remove, config, search)
+- SDK integration (@fractary/forge)
+- GitHub-based asset distribution
+- Catalog-based discovery
+- Project scaffolding and bundle management
+
 ### 🚧 In Progress (Faber)
 - Additional concept loaders (Tools, Teams, Workflows, Evals)
 - LangGraph and CrewAI bindings
@@ -265,7 +318,6 @@ Common functionality shared across all tools reduces duplication.
 - Watch mode
 
 ### 📋 Planned
-- Forge tool integration
 - Helm tool integration
 
 ## 🤝 Contributing
@@ -302,7 +354,7 @@ Fractary CLI depends on core SDK packages for each tool:
 
 - **[@fractary/faber](https://www.npmjs.com/package/@fractary/faber)** - Core SDK for Faber
 - **[@fractary/codex](https://www.npmjs.com/package/@fractary/codex)** - Core SDK for Codex
-- **@fractary/forge** - Core SDK for Forge (coming soon)
+- **[@fractary/forge](https://www.npmjs.com/package/@fractary/forge)** - Core SDK for Forge
 - **@fractary/helm** - Core SDK for Helm (coming soon)
 
 ## 📄 License

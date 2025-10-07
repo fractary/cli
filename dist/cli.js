@@ -8,7 +8,7 @@
  * Available tools:
  * - faber: Universal AI agent orchestration
  * - codex: Centralized knowledge management
- * - forge: [Coming soon]
+ * - forge: Asset management and project scaffolding
  * - helm: [Coming soon]
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
@@ -19,6 +19,7 @@ const commander_1 = require("commander");
 const chalk_1 = __importDefault(require("chalk"));
 const faber_1 = require("./tools/faber");
 const codex_1 = require("./tools/codex");
+const forge_1 = require("./tools/forge");
 // Package information
 const packageJson = require('../package.json');
 // Create main program
@@ -30,8 +31,8 @@ program
 // Add tool commands
 program.addCommand((0, faber_1.createFaberCommand)());
 program.addCommand((0, codex_1.createCodexCommand)());
+program.addCommand((0, forge_1.createForgeCommand)());
 // Future tools (commented out until available)
-// program.addCommand(createForgeCommand());
 // program.addCommand(createHelmCommand());
 // Show help if no tool specified
 if (process.argv.length === 2) {
@@ -53,7 +54,7 @@ async function main() {
             console.log(chalk_1.default.gray('\nAvailable tools:'));
             console.log(chalk_1.default.gray('  faber  - Universal AI agent orchestration'));
             console.log(chalk_1.default.gray('  codex  - Centralized knowledge management'));
-            console.log(chalk_1.default.gray('  forge  - [Coming soon]'));
+            console.log(chalk_1.default.gray('  forge  - Asset management and project scaffolding'));
             console.log(chalk_1.default.gray('  helm   - [Coming soon]'));
             console.log(chalk_1.default.gray('\nRun "fractary --help" for more information.'));
             process.exit(1);

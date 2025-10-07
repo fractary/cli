@@ -1,6 +1,6 @@
 {
   "name": "@fractary/cli",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Unified CLI for all Fractary tools (faber, forge, helm, codex)",
   "main": "dist/index.js",
   "bin": {
@@ -27,22 +27,30 @@
     "mcp",
     "claude",
     "langgraph",
-    "crewai"
+    "crewai",
+    "scaffolding",
+    "asset-management",
+    "forge"
   ],
   "author": "Fractary Team",
   "license": "MIT",
   "dependencies": {
     "@fractary/codex": "^0.1.0",
     "@fractary/faber": "^0.1.0",
+    "@fractary/forge": "^1.0.0",
+    "ajv": "^8.12.0",
     "chalk": "^5.3.0",
     "commander": "^11.1.0",
-    "glob": "^10.3.10"
+    "glob": "^10.3.10",
+    "gray-matter": "^4.0.3",
+    "prompts": "^2.4.2"
   },
   "devDependencies": {
     "@types/glob": "^8.1.0",
     "@types/handlebars": "^4.0.40",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.19.19",
+    "@types/prompts": "^2.4.9",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
     "eslint": "^8.56.0",

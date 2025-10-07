@@ -47,6 +47,9 @@ MCP server relationship to platforms, configuration, dependency resolution, and 
 ### [SPEC-0013: Codex CLI Integration](./SPEC-0013-codex-cli-integration.md)
 Codex knowledge management CLI commands, SDK integration, metadata validation, routing analysis, and configuration management.
 
+### [SPEC-0014: Forge CLI Integration](./SPEC-0014-forge-cli-integration.md)
+Forge asset management and project scaffolding CLI commands, SDK integration, GitHub-based distribution, catalog discovery, and bundle management.
+
 ## Reading Order
 
 ### For Understanding the Vision

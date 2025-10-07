@@ -1,0 +1,1 @@
+{"version":3,"file":"install.d.ts","sourceRoot":"","sources":["../../../../src/tools/forge/commands/install.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,OAAO,EAAE,MAAM,WAAW,CAAC;AAEpC,OAAO,EAAE,WAAW,EAAE,MAAM,QAAQ,CAAC;AAsBrC,qBAAa,cAAe,SAAQ,WAAW;IAC7C,QAAQ,CAAC,OAAO,EAAE,OAAO,GAAG,OAAO;YAcrB,OAAO;YAqIP,kBAAkB;IA+ChC,OAAO,CAAC,cAAc;IAQtB,OAAO,CAAC,mBAAmB;CAiF5B"}
