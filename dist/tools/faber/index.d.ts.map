@@ -1,1 +1,1 @@
-{"version":3,"file":"index.d.ts","sourceRoot":"","sources":["../../../src/tools/faber/index.ts"],"names":[],"mappings":"AAAA;;;;GAIG;AAEH,OAAO,EAAE,OAAO,EAAE,MAAM,WAAW,CAAC;AAOpC;;GAEG;AACH,wBAAgB,kBAAkB,IAAI,OAAO,CAe5C"}
+{"version":3,"file":"index.d.ts","sourceRoot":"","sources":["../../../src/tools/faber/index.ts"],"names":[],"mappings":"AAAA;;;;;;;;;;;;;;;GAeG;AAEH,OAAO,EAAE,OAAO,EAAE,MAAM,WAAW,CAAC;AAYpC;;GAEG;AACH,wBAAgB,kBAAkB,IAAI,OAAO,CAoB5C"}

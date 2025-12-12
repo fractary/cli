@@ -5,11 +5,17 @@
  *
  * Command pattern: fractary <tool> <command> [options]
  *
- * Available tools:
- * - faber: Universal AI agent orchestration
+ * SDK Commands:
+ * - faber: FABER development toolkit (workflow, work, repo, spec, logs)
  * - codex: Centralized knowledge management
  * - forge: Asset management and project scaffolding
  * - helm: [Coming soon]
+ *
+ * Shortcut Commands:
+ * - work: Work item tracking (alias for faber work)
+ * - repo: Repository operations (alias for faber repo)
+ * - spec: Specification management (alias for faber spec)
+ * - logs: Log management (alias for faber logs)
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -20,6 +26,7 @@ const chalk_1 = __importDefault(require("chalk"));
 const faber_1 = require("./tools/faber");
 const codex_1 = require("./tools/codex");
 const forge_1 = require("./tools/forge");
+const aliases_1 = require("./tools/aliases");
 // Package information
 const packageJson = require('../package.json');
 // Create main program
@@ -28,13 +35,40 @@ program
     .name('fractary')
     .description('Unified CLI for all Fractary tools')
     .version(packageJson.version);
-// Add tool commands
+// SDK tool commands
 program.addCommand((0, faber_1.createFaberCommand)());
 program.addCommand((0, codex_1.createCodexCommand)());
 program.addCommand((0, forge_1.createForgeCommand)());
 // Future tools (commented out until available)
 // program.addCommand(createHelmCommand());
-// Show help if no tool specified
+// Top-level shortcut aliases (delegate to faber subcommands)
+program.addCommand((0, aliases_1.createWorkAliasCommand)());
+program.addCommand((0, aliases_1.createRepoAliasCommand)());
+program.addCommand((0, aliases_1.createSpecAliasCommand)());
+program.addCommand((0, aliases_1.createLogsAliasCommand)());
+// Custom help to show SDK vs Shortcut commands separately
+program.addHelpText('after', `
+${chalk_1.default.bold('SDK Commands:')}
+  faber       FABER development toolkit (workflow, work, repo, spec, logs)
+  codex       Codex knowledge infrastructure (fetch, sync, cache, mcp)
+  forge       Asset management and project scaffolding
+  helm        Runtime governance and monitoring [coming soon]
+
+${chalk_1.default.bold('Shortcut Commands:')}
+  work        Work item tracking (alias for: faber work)
+  repo        Repository operations (alias for: faber repo)
+  spec        Specification management (alias for: faber spec)
+  logs        Log management (alias for: faber logs)
+
+${chalk_1.default.bold('Examples:')}
+  $ fractary faber run --work-id 123     # Run FABER workflow
+  $ fractary work issue fetch 123        # Fetch work item (shortcut)
+  $ fractary repo commit --message "Add feature"  # Create commit (shortcut)
+  $ fractary codex fetch "codex://org/project/doc.md"  # Fetch from Codex
+
+Run '${chalk_1.default.cyan('fractary <command> --help')}' for more information on a command.
+`);
+// Show help if no command specified
 if (process.argv.length === 2) {
     program.outputHelp();
     process.exit(0);
@@ -51,11 +85,16 @@ async function main() {
         }
         if (error.code === 'commander.unknownCommand') {
             console.error(chalk_1.default.red('Unknown command:'), error.message);
-            console.log(chalk_1.default.gray('\nAvailable tools:'));
-            console.log(chalk_1.default.gray('  faber  - Universal AI agent orchestration'));
-            console.log(chalk_1.default.gray('  codex  - Centralized knowledge management'));
+            console.log(chalk_1.default.gray('\nAvailable SDK tools:'));
+            console.log(chalk_1.default.gray('  faber  - FABER development toolkit'));
+            console.log(chalk_1.default.gray('  codex  - Codex knowledge infrastructure'));
             console.log(chalk_1.default.gray('  forge  - Asset management and project scaffolding'));
-            console.log(chalk_1.default.gray('  helm   - [Coming soon]'));
+            console.log(chalk_1.default.gray('  helm   - Runtime governance [coming soon]'));
+            console.log(chalk_1.default.gray('\nShortcut commands:'));
+            console.log(chalk_1.default.gray('  work   - Work item tracking'));
+            console.log(chalk_1.default.gray('  repo   - Repository operations'));
+            console.log(chalk_1.default.gray('  spec   - Specification management'));
+            console.log(chalk_1.default.gray('  logs   - Log management'));
             console.log(chalk_1.default.gray('\nRun "fractary --help" for more information.'));
             process.exit(1);
         }
