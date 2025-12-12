@@ -25,7 +25,7 @@ const commander_1 = require("commander");
 const chalk_1 = __importDefault(require("chalk"));
 const faber_1 = require("./tools/faber");
 const codex_1 = require("./tools/codex");
-const forge_1 = require("./tools/forge");
+// import { createForgeCommand } from './tools/forge'; // TODO: Re-enable when @fractary/forge SDK is published
 const aliases_1 = require("./tools/aliases");
 // Package information
 const packageJson = require('../package.json');
@@ -38,7 +38,7 @@ program
 // SDK tool commands
 program.addCommand((0, faber_1.createFaberCommand)());
 program.addCommand((0, codex_1.createCodexCommand)());
-program.addCommand((0, forge_1.createForgeCommand)());
+// program.addCommand(createForgeCommand()); // TODO: Re-enable when @fractary/forge SDK is published
 // Future tools (commented out until available)
 // program.addCommand(createHelmCommand());
 // Top-level shortcut aliases (delegate to faber subcommands)

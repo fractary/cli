@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-12-12T20:01:38Z",
+  "timestamp": "2025-12-12T20:20:28Z",
   "prompt": "{\"session_id\":\"d5780331-8a1a-4b11-b46a-29d3a856bbc9\",\"transcript_path\":\"/home/jmcwilliam/.claude/projects/-mnt-c-GitHub-fractary-cli/d5780331-8a1a-4b11-b46a-29d3a856bbc9.jsonl\",\"cwd\":\"/mnt/c/GitHub/fractary/cli\",\"permission_mode\":\"bypassPermissions\",\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"yes\"} ",
   "prompt_short": "{\"session_id\":\"d5780331-8a1a-4b11-b46..."
 }
