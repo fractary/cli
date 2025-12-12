@@ -5,6 +5,33 @@ All notable changes to the Fractary CLI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2025-12-12
+
+### Added
+- **SDK Integration**: Complete integration with @fractary/faber SDK v1.0.1
+  - All commands now use live SDK managers instead of stubs
+  - Factory pattern for lazy-loaded manager instances
+  - Comprehensive type re-exports from SDK
+  - `--json` flag on all commands for programmatic access
+
+### Changed
+- `faber work` commands now use `WorkManager` from SDK for real operations
+- `faber repo` commands now use `RepoManager` from SDK for Git operations
+- `faber spec` commands now use `SpecManager` from SDK for specification lifecycle
+- `faber logs` commands now use `LogManager` from SDK for session capture
+- `faber run/status/pause/resume/recover` commands now use `FaberWorkflow` from SDK
+- Package dependency updated to `@fractary/faber@^1.0.1`
+
+### Removed
+- Stub implementations (`src/sdk/stubs.ts`, `src/sdk/types.ts`)
+- Legacy simple commands (`src/tools/faber/simple.ts`)
+- Old individual commands (build.ts, create.ts, list.ts, validate.ts) - replaced by SDK-integrated commands
+
+### Developer Notes
+- CLI now requires `@fractary/faber` SDK as peer dependency
+- External projects can import factory functions and types from `@fractary/cli`
+- See `docs/sdk-integration-guide.md` for integration patterns
+
 ## [0.2.0] - 2025-10-07
 
 ### Added

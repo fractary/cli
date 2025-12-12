@@ -279,6 +279,10 @@ Common functionality shared across all tools reduces duplication.
 - [Binding System](docs/faber/bindings.md)
 - [Examples](docs/faber/examples.md)
 
+### SDK Integration
+- [SDK Integration Guide](docs/sdk-integration-guide.md) - How to use CLI SDK in your projects
+- [API Reference](docs/api.md) - Programmatic API documentation
+
 ### General
 - [CLI Architecture](docs/architecture.md)
 - [Contributing](docs/contributing.md)
