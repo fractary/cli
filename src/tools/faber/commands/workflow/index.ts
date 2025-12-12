@@ -1,7 +1,7 @@
 /**
  * Workflow commands - FABER workflow execution
  *
- * Provides run, status, plan commands via FaberWorkflow SDK.
+ * Provides run, status, resume, pause commands via FaberWorkflow SDK.
  */
 
 import { Command } from 'commander';
@@ -15,51 +15,47 @@ export function createRunCommand(): Command {
   return new Command('run')
     .description('Run FABER workflow')
     .requiredOption('--work-id <id>', 'Work item ID to process')
-    .option('--autonomy <level>', 'Autonomy level: dry-run|assist|guarded|autonomous', 'guarded')
-    .option('--phase <phase>', 'Start from specific phase: frame|architect|build|evaluate|release')
-    .option('--resume', 'Resume from last checkpoint')
-    .option('--skip-frame', 'Skip frame phase (reuse existing context)')
+    .option('--autonomy <level>', 'Autonomy level: supervised|assisted|autonomous', 'supervised')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       try {
         const workflow = await getWorkflow();
 
-        console.log(chalk.blue(`Starting FABER workflow for work item #${options.workId}`));
-        console.log(chalk.gray(`Autonomy: ${options.autonomy}`));
-
-        if (options.phase) {
-          console.log(chalk.gray(`Starting from phase: ${options.phase}`));
+        if (!options.json) {
+          console.log(chalk.blue(`Starting FABER workflow for work item #${options.workId}`));
+          console.log(chalk.gray(`Autonomy: ${options.autonomy}`));
         }
+
+        // Add event listener for progress updates
+        workflow.addEventListener((event, data) => {
+          if (options.json) return;
+
+          switch (event) {
+            case 'phase:start':
+              console.log(chalk.cyan(`\n→ Starting phase: ${String(data.phase || '').toUpperCase()}`));
+              break;
+            case 'phase:complete':
+              console.log(chalk.green(`  ✓ Completed phase: ${data.phase}`));
+              break;
+            case 'workflow:fail':
+            case 'phase:fail':
+              console.error(chalk.red(`  ✗ Error: ${data.error || 'Unknown error'}`));
+              break;
+          }
+        });
 
         const result = await workflow.run({
           workId: options.workId,
           autonomy: options.autonomy,
-          startPhase: options.phase,
-          resume: options.resume,
-          skipFrame: options.skipFrame,
-          onPhaseStart: (phase: string) => {
-            if (!options.json) {
-              console.log(chalk.cyan(`\n→ Starting phase: ${phase.toUpperCase()}`));
-            }
-          },
-          onPhaseComplete: (phase: string, result: any) => {
-            if (!options.json) {
-              console.log(chalk.green(`  ✓ Completed phase: ${phase}`));
-            }
-          },
-          onCheckpoint: (checkpoint: any) => {
-            if (!options.json) {
-              console.log(chalk.gray(`  [checkpoint saved]`));
-            }
-          },
         });
 
         if (options.json) {
           console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
         } else {
-          console.log(chalk.green(`\n✓ Workflow completed successfully`));
-          console.log(chalk.gray(`  Duration: ${result.duration}ms`));
-          console.log(chalk.gray(`  Phases completed: ${result.phasesCompleted.join(' → ')}`));
+          console.log(chalk.green(`\n✓ Workflow ${result.status}`));
+          console.log(chalk.gray(`  Workflow ID: ${result.workflow_id}`));
+          console.log(chalk.gray(`  Duration: ${result.duration_ms}ms`));
+          console.log(chalk.gray(`  Phases: ${result.phases.map(p => p.phase).join(' → ')}`));
         }
       } catch (error) {
         handleWorkflowError(error, options);
@@ -74,50 +70,75 @@ export function createStatusCommand(): Command {
   return new Command('status')
     .description('Show workflow status')
     .option('--work-id <id>', 'Work item ID to check')
+    .option('--workflow-id <id>', 'Workflow ID to check')
     .option('--verbose', 'Show detailed status')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       try {
         const stateManager = await getStateManager();
 
-        if (options.workId) {
-          // Status for specific work item
-          const status = await stateManager.getWorkflowStatus(options.workId);
+        if (options.workflowId) {
+          // Status for specific workflow by ID
+          const workflow = await getWorkflow();
+          const status = workflow.getStatus(options.workflowId);
 
           if (options.json) {
             console.log(JSON.stringify({ status: 'success', data: status }, null, 2));
           } else {
-            console.log(chalk.bold(`Workflow Status: Work Item #${options.workId}`));
-            console.log(`  State: ${getStateColor(status.state)(status.state)}`);
+            console.log(chalk.bold(`Workflow Status: ${options.workflowId}`));
             console.log(`  Current Phase: ${status.currentPhase || 'N/A'}`);
-            console.log(`  Started: ${status.startedAt || 'N/A'}`);
+            console.log(`  Progress: ${status.progress}%`);
+          }
+        } else if (options.workId) {
+          // Status for work item's active workflow
+          const state = stateManager.getActiveWorkflow(options.workId);
 
-            if (status.checkpoint) {
-              console.log(chalk.gray(`  Last Checkpoint: ${status.checkpoint.savedAt}`));
+          if (!state) {
+            if (options.json) {
+              console.log(JSON.stringify({
+                status: 'success',
+                data: { active: false, message: 'No active workflow' },
+              }, null, 2));
+            } else {
+              console.log(chalk.yellow(`No active workflow for work item #${options.workId}`));
             }
+            return;
+          }
 
-            if (options.verbose && status.phases) {
+          if (options.json) {
+            console.log(JSON.stringify({ status: 'success', data: state }, null, 2));
+          } else {
+            console.log(chalk.bold(`Workflow Status: Work Item #${options.workId}`));
+            console.log(`  Workflow ID: ${state.workflow_id}`);
+            console.log(`  State: ${getStateColor(state.status)(state.status)}`);
+            console.log(`  Current Phase: ${state.current_phase || 'N/A'}`);
+            console.log(`  Started: ${state.started_at || 'N/A'}`);
+
+            if (options.verbose && state.phase_states) {
               console.log(chalk.yellow('\nPhase Details:'));
-              status.phases.forEach((phase: any) => {
-                const icon = phase.complete ? chalk.green('✓') :
-                             phase.current ? chalk.cyan('→') : chalk.gray('○');
-                console.log(`  ${icon} ${phase.name} ${phase.duration ? `(${phase.duration}ms)` : ''}`);
+              Object.entries(state.phase_states).forEach(([phase, phaseState]) => {
+                const ps = phaseState as { status: string };
+                const icon = ps.status === 'completed' ? chalk.green('✓') :
+                             ps.status === 'in_progress' ? chalk.cyan('→') :
+                             ps.status === 'failed' ? chalk.red('✗') : chalk.gray('○');
+                console.log(`  ${icon} ${phase}`);
               });
             }
           }
         } else {
-          // List all active workflows
-          const activeWorkflows = await stateManager.listActiveWorkflows();
+          // List all workflows
+          const workflows = stateManager.listWorkflows();
 
           if (options.json) {
-            console.log(JSON.stringify({ status: 'success', data: activeWorkflows }, null, 2));
+            console.log(JSON.stringify({ status: 'success', data: workflows }, null, 2));
           } else {
-            if (activeWorkflows.length === 0) {
-              console.log(chalk.yellow('No active workflows'));
+            if (workflows.length === 0) {
+              console.log(chalk.yellow('No workflows found'));
             } else {
-              console.log(chalk.bold('Active Workflows:'));
-              activeWorkflows.forEach((wf: any) => {
-                console.log(`  #${wf.workId}: ${wf.currentPhase} [${getStateColor(wf.state)(wf.state)}]`);
+              console.log(chalk.bold('Workflows:'));
+              workflows.forEach((wf) => {
+                const stateColor = getStateColor(wf.status);
+                console.log(`  ${wf.workflow_id}: work #${wf.work_id} - ${wf.current_phase || 'N/A'} [${stateColor(wf.status)}]`);
               });
             }
           }
@@ -129,63 +150,119 @@ export function createStatusCommand(): Command {
 }
 
 /**
- * Create the plan command
+ * Create the resume command
  */
-export function createPlanCommand(): Command {
-  return new Command('plan')
-    .description('Create or view execution plan')
-    .requiredOption('--work-id <id>', 'Work item ID')
-    .option('--output <path>', 'Output plan to file')
+export function createResumeCommand(): Command {
+  return new Command('resume')
+    .description('Resume a paused workflow')
+    .argument('<workflow_id>', 'Workflow ID to resume')
     .option('--json', 'Output as JSON')
-    .action(async (options) => {
+    .action(async (workflowId: string, options) => {
       try {
         const workflow = await getWorkflow();
 
-        // Generate or retrieve plan
-        const plan = await workflow.createPlan(options.workId);
-
-        if (options.output) {
-          const fs = await import('fs/promises');
-          await fs.writeFile(options.output, JSON.stringify(plan, null, 2));
-
-          if (!options.json) {
-            console.log(chalk.green(`✓ Plan saved to: ${options.output}`));
-          }
+        if (!options.json) {
+          console.log(chalk.blue(`Resuming workflow: ${workflowId}`));
         }
 
+        const result = await workflow.resume(workflowId);
+
         if (options.json) {
-          console.log(JSON.stringify({ status: 'success', data: plan }, null, 2));
+          console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
         } else {
-          console.log(chalk.bold(`Execution Plan: Work Item #${options.workId}`));
-          console.log(chalk.gray(`Generated: ${plan.createdAt}`));
-          console.log('');
+          console.log(chalk.green(`\n✓ Workflow ${result.status}`));
+          console.log(chalk.gray(`  Duration: ${result.duration_ms}ms`));
+        }
+      } catch (error) {
+        handleWorkflowError(error, options);
+      }
+    });
+}
 
-          // Show phases
-          console.log(chalk.yellow('Phases:'));
-          plan.phases.forEach((phase: any, i: number) => {
-            console.log(`  ${i + 1}. ${chalk.cyan(phase.name.toUpperCase())}`);
-            console.log(chalk.gray(`     ${phase.description}`));
+/**
+ * Create the pause command
+ */
+export function createPauseCommand(): Command {
+  return new Command('pause')
+    .description('Pause a running workflow')
+    .argument('<workflow_id>', 'Workflow ID to pause')
+    .option('--json', 'Output as JSON')
+    .action(async (workflowId: string, options) => {
+      try {
+        const workflow = await getWorkflow();
 
-            if (phase.tasks && phase.tasks.length > 0) {
-              phase.tasks.forEach((task: string) => {
-                console.log(`       - ${task}`);
-              });
-            }
-          });
+        workflow.pause(workflowId);
 
-          // Show dependencies
-          if (plan.dependencies && plan.dependencies.length > 0) {
-            console.log(chalk.yellow('\nDependencies:'));
-            plan.dependencies.forEach((dep: any) => {
-              console.log(`  - ${dep.name}: ${dep.status}`);
-            });
+        if (options.json) {
+          console.log(JSON.stringify({ status: 'success', data: { paused: workflowId } }, null, 2));
+        } else {
+          console.log(chalk.green(`✓ Paused workflow: ${workflowId}`));
+        }
+      } catch (error) {
+        handleWorkflowError(error, options);
+      }
+    });
+}
+
+/**
+ * Create the recover command
+ */
+export function createRecoverCommand(): Command {
+  return new Command('recover')
+    .description('Recover a workflow from checkpoint')
+    .argument('<workflow_id>', 'Workflow ID to recover')
+    .option('--checkpoint <id>', 'Specific checkpoint ID to recover from')
+    .option('--phase <phase>', 'Recover to specific phase')
+    .option('--json', 'Output as JSON')
+    .action(async (workflowId: string, options) => {
+      try {
+        const stateManager = await getStateManager();
+
+        const state = stateManager.recoverWorkflow(workflowId, {
+          checkpointId: options.checkpoint,
+          fromPhase: options.phase,
+        });
+
+        if (options.json) {
+          console.log(JSON.stringify({ status: 'success', data: state }, null, 2));
+        } else {
+          console.log(chalk.green(`✓ Recovered workflow: ${workflowId}`));
+          console.log(chalk.gray(`  Current phase: ${state.current_phase}`));
+          console.log(chalk.gray(`  Status: ${state.status}`));
+        }
+      } catch (error) {
+        handleWorkflowError(error, options);
+      }
+    });
+}
+
+/**
+ * Create the cleanup command
+ */
+export function createCleanupCommand(): Command {
+  return new Command('cleanup')
+    .description('Clean up old workflow states')
+    .option('--max-age <days>', 'Delete workflows older than N days', '30')
+    .option('--json', 'Output as JSON')
+    .action(async (options) => {
+      try {
+        const stateManager = await getStateManager();
+
+        const result = stateManager.cleanup(parseInt(options.maxAge, 10));
+
+        if (options.json) {
+          console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
+        } else {
+          if (result.deleted === 0) {
+            console.log(chalk.yellow('No workflows to clean up'));
+          } else {
+            console.log(chalk.green(`✓ Cleaned up ${result.deleted} workflow(s)`));
           }
-
-          // Show estimated effort
-          if (plan.estimate) {
-            console.log(chalk.yellow('\nEstimated Effort:'));
-            console.log(`  Complexity: ${plan.estimate.complexity}`);
-            console.log(`  Risk: ${plan.estimate.risk}`);
+          if (result.errors.length > 0) {
+            console.log(chalk.yellow(`\nErrors (${result.errors.length}):`));
+            result.errors.forEach((err) => {
+              console.log(chalk.red(`  - ${err}`));
+            });
           }
         }
       } catch (error) {
@@ -206,6 +283,7 @@ function getStateColor(state: string): (text: string) => string {
       return chalk.red;
     case 'paused':
       return chalk.yellow;
+    case 'idle':
     case 'pending':
       return chalk.gray;
     default:

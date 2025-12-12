@@ -1,7 +1,7 @@
 /**
  * Logs subcommand - Log management
  *
- * Provides capture, write, search, list, archive, cleanup, audit operations via LogManager SDK.
+ * Provides capture, write, search, list, archive operations via LogManager SDK.
  */
 import { Command } from 'commander';
 /**

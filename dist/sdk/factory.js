@@ -3,10 +3,7 @@
  * SDK Factory - Provides lazy-loaded SDK client instances
  *
  * This module implements the factory pattern for SDK integration,
- * providing centralized access to SDK managers with proper error handling.
- *
- * Currently uses stub implementations until @fractary/faber v0.2.0 is available
- * with the new manager classes (WorkManager, RepoManager, etc.).
+ * providing centralized access to @fractary/faber SDK managers.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -42,7 +39,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SDKNotAvailableError = void 0;
+exports.mergeWithDefaults = exports.getDefaultWorkflowConfig = exports.loadFaberConfig = exports.loadStateConfig = exports.loadLogConfig = exports.loadSpecConfig = exports.loadRepoConfig = exports.loadWorkConfig = exports.SDKNotAvailableError = void 0;
 exports.getWorkManager = getWorkManager;
 exports.getRepoManager = getRepoManager;
 exports.getSpecManager = getSpecManager;
@@ -51,7 +48,15 @@ exports.getStateManager = getStateManager;
 exports.getWorkflow = getWorkflow;
 exports.clearInstances = clearInstances;
 exports.isFaberAvailable = isFaberAvailable;
-const stubs_1 = require("./stubs");
+const faber_1 = require("@fractary/faber");
+Object.defineProperty(exports, "loadWorkConfig", { enumerable: true, get: function () { return faber_1.loadWorkConfig; } });
+Object.defineProperty(exports, "loadRepoConfig", { enumerable: true, get: function () { return faber_1.loadRepoConfig; } });
+Object.defineProperty(exports, "loadSpecConfig", { enumerable: true, get: function () { return faber_1.loadSpecConfig; } });
+Object.defineProperty(exports, "loadLogConfig", { enumerable: true, get: function () { return faber_1.loadLogConfig; } });
+Object.defineProperty(exports, "loadStateConfig", { enumerable: true, get: function () { return faber_1.loadStateConfig; } });
+Object.defineProperty(exports, "loadFaberConfig", { enumerable: true, get: function () { return faber_1.loadFaberConfig; } });
+Object.defineProperty(exports, "getDefaultWorkflowConfig", { enumerable: true, get: function () { return faber_1.getDefaultWorkflowConfig; } });
+Object.defineProperty(exports, "mergeWithDefaults", { enumerable: true, get: function () { return faber_1.mergeWithDefaults; } });
 const instances = {};
 /**
  * Error thrown when SDK is not available
@@ -66,93 +71,95 @@ class SDKNotAvailableError extends Error {
 }
 exports.SDKNotAvailableError = SDKNotAvailableError;
 /**
- * Load configuration from project .fractary directory
- */
-async function loadConfig() {
-    try {
-        const fs = await Promise.resolve().then(() => __importStar(require('fs/promises')));
-        const path = await Promise.resolve().then(() => __importStar(require('path')));
-        const configPath = path.join(process.cwd(), '.fractary', 'faber', 'config.json');
-        const content = await fs.readFile(configPath, 'utf-8');
-        return JSON.parse(content);
-    }
-    catch {
-        return null;
-    }
-}
-/**
  * Get WorkManager instance (lazy-loaded)
- *
- * TODO: Replace stub with actual SDK import once @fractary/faber v0.2.0 is available:
- *   const { WorkManager, loadWorkConfig } = await import('@fractary/faber');
- *   const resolvedConfig = config ?? loadWorkConfig() ?? undefined;
- *   instances.work = new WorkManager(resolvedConfig);
  */
 async function getWorkManager(config) {
     if (!instances.work) {
-        const projectConfig = await loadConfig();
-        const resolvedConfig = config ?? projectConfig?.work;
-        instances.work = (0, stubs_1.createStubWorkManager)(resolvedConfig);
+        try {
+            const resolvedConfig = config ?? (0, faber_1.loadWorkConfig)() ?? undefined;
+            instances.work = new faber_1.WorkManager(resolvedConfig);
+        }
+        catch (error) {
+            throw new SDKNotAvailableError('faber', error instanceof Error ? error : undefined);
+        }
     }
     return instances.work;
 }
 /**
  * Get RepoManager instance (lazy-loaded)
- *
- * TODO: Replace stub with actual SDK import once @fractary/faber v0.2.0 is available:
- *   const { RepoManager, loadRepoConfig } = await import('@fractary/faber');
- *   const resolvedConfig = config ?? loadRepoConfig() ?? undefined;
- *   instances.repo = new RepoManager(resolvedConfig);
  */
 async function getRepoManager(config) {
     if (!instances.repo) {
-        const projectConfig = await loadConfig();
-        const resolvedConfig = config ?? projectConfig?.repo;
-        instances.repo = (0, stubs_1.createStubRepoManager)(resolvedConfig);
+        try {
+            const resolvedConfig = config ?? (0, faber_1.loadRepoConfig)() ?? undefined;
+            instances.repo = new faber_1.RepoManager(resolvedConfig);
+        }
+        catch (error) {
+            throw new SDKNotAvailableError('faber', error instanceof Error ? error : undefined);
+        }
     }
     return instances.repo;
 }
 /**
  * Get SpecManager instance (lazy-loaded)
- *
- * TODO: Replace stub with actual SDK import once @fractary/faber v0.2.0 is available
  */
-async function getSpecManager() {
+async function getSpecManager(config) {
     if (!instances.spec) {
-        instances.spec = (0, stubs_1.createStubSpecManager)();
+        try {
+            const resolvedConfig = config ?? (0, faber_1.loadSpecConfig)();
+            instances.spec = new faber_1.SpecManager(resolvedConfig);
+        }
+        catch (error) {
+            throw new SDKNotAvailableError('faber', error instanceof Error ? error : undefined);
+        }
     }
     return instances.spec;
 }
 /**
  * Get LogManager instance (lazy-loaded)
- *
- * TODO: Replace stub with actual SDK import once @fractary/faber v0.2.0 is available
  */
-async function getLogManager() {
+async function getLogManager(config) {
     if (!instances.logs) {
-        instances.logs = (0, stubs_1.createStubLogManager)();
+        try {
+            const resolvedConfig = config ?? (0, faber_1.loadLogConfig)();
+            instances.logs = new faber_1.LogManager(resolvedConfig);
+        }
+        catch (error) {
+            throw new SDKNotAvailableError('faber', error instanceof Error ? error : undefined);
+        }
     }
     return instances.logs;
 }
 /**
  * Get StateManager instance (lazy-loaded)
- *
- * TODO: Replace stub with actual SDK import once @fractary/faber v0.2.0 is available
  */
-async function getStateManager() {
+async function getStateManager(config) {
     if (!instances.state) {
-        instances.state = (0, stubs_1.createStubStateManager)();
+        try {
+            const resolvedConfig = config ?? (0, faber_1.loadStateConfig)();
+            instances.state = new faber_1.StateManager(resolvedConfig);
+        }
+        catch (error) {
+            throw new SDKNotAvailableError('faber', error instanceof Error ? error : undefined);
+        }
     }
     return instances.state;
 }
 /**
  * Get FaberWorkflow instance (lazy-loaded)
- *
- * TODO: Replace stub with actual SDK import once @fractary/faber v0.2.0 is available
  */
-async function getWorkflow() {
+async function getWorkflow(config) {
     if (!instances.workflow) {
-        instances.workflow = (0, stubs_1.createStubWorkflow)();
+        try {
+            const faberConfig = (0, faber_1.loadFaberConfig)();
+            const workflowConfig = config
+                ? (0, faber_1.mergeWithDefaults)(config)
+                : faberConfig?.workflow ?? (0, faber_1.getDefaultWorkflowConfig)();
+            instances.workflow = new faber_1.FaberWorkflow({ config: workflowConfig });
+        }
+        catch (error) {
+            throw new SDKNotAvailableError('faber', error instanceof Error ? error : undefined);
+        }
     }
     return instances.workflow;
 }

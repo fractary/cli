@@ -2,12 +2,9 @@
  * SDK Factory - Provides lazy-loaded SDK client instances
  *
  * This module implements the factory pattern for SDK integration,
- * providing centralized access to SDK managers with proper error handling.
- *
- * Currently uses stub implementations until @fractary/faber v0.2.0 is available
- * with the new manager classes (WorkManager, RepoManager, etc.).
+ * providing centralized access to @fractary/faber SDK managers.
  */
-import type { WorkManager, RepoManager, SpecManager, LogManager, StateManager, FaberWorkflow, WorkConfig, RepoConfig } from './types';
+import { WorkManager, RepoManager, SpecManager, LogManager, StateManager, FaberWorkflow, loadWorkConfig, loadRepoConfig, loadSpecConfig, loadLogConfig, loadStateConfig, loadFaberConfig, getDefaultWorkflowConfig, mergeWithDefaults, WorkConfig, RepoConfig, SpecConfig, LogConfig, StateConfig, WorkflowConfig, FaberConfig } from '@fractary/faber';
 /**
  * Error thrown when SDK is not available
  */
@@ -18,46 +15,28 @@ export declare class SDKNotAvailableError extends Error {
 }
 /**
  * Get WorkManager instance (lazy-loaded)
- *
- * TODO: Replace stub with actual SDK import once @fractary/faber v0.2.0 is available:
- *   const { WorkManager, loadWorkConfig } = await import('@fractary/faber');
- *   const resolvedConfig = config ?? loadWorkConfig() ?? undefined;
- *   instances.work = new WorkManager(resolvedConfig);
  */
 export declare function getWorkManager(config?: WorkConfig): Promise<WorkManager>;
 /**
  * Get RepoManager instance (lazy-loaded)
- *
- * TODO: Replace stub with actual SDK import once @fractary/faber v0.2.0 is available:
- *   const { RepoManager, loadRepoConfig } = await import('@fractary/faber');
- *   const resolvedConfig = config ?? loadRepoConfig() ?? undefined;
- *   instances.repo = new RepoManager(resolvedConfig);
  */
 export declare function getRepoManager(config?: RepoConfig): Promise<RepoManager>;
 /**
  * Get SpecManager instance (lazy-loaded)
- *
- * TODO: Replace stub with actual SDK import once @fractary/faber v0.2.0 is available
  */
-export declare function getSpecManager(): Promise<SpecManager>;
+export declare function getSpecManager(config?: SpecConfig): Promise<SpecManager>;
 /**
  * Get LogManager instance (lazy-loaded)
- *
- * TODO: Replace stub with actual SDK import once @fractary/faber v0.2.0 is available
  */
-export declare function getLogManager(): Promise<LogManager>;
+export declare function getLogManager(config?: LogConfig): Promise<LogManager>;
 /**
  * Get StateManager instance (lazy-loaded)
- *
- * TODO: Replace stub with actual SDK import once @fractary/faber v0.2.0 is available
  */
-export declare function getStateManager(): Promise<StateManager>;
+export declare function getStateManager(config?: StateConfig): Promise<StateManager>;
 /**
  * Get FaberWorkflow instance (lazy-loaded)
- *
- * TODO: Replace stub with actual SDK import once @fractary/faber v0.2.0 is available
  */
-export declare function getWorkflow(): Promise<FaberWorkflow>;
+export declare function getWorkflow(config?: Partial<WorkflowConfig>): Promise<FaberWorkflow>;
 /**
  * Clear cached instances (useful for testing)
  */
@@ -66,4 +45,6 @@ export declare function clearInstances(): void;
  * Check if faber SDK is available
  */
 export declare function isFaberAvailable(): Promise<boolean>;
+export { loadWorkConfig, loadRepoConfig, loadSpecConfig, loadLogConfig, loadStateConfig, loadFaberConfig, getDefaultWorkflowConfig, mergeWithDefaults, };
+export type { WorkConfig, RepoConfig, SpecConfig, LogConfig, StateConfig, WorkflowConfig, FaberConfig, };
 //# sourceMappingURL=factory.d.ts.map

@@ -8,7 +8,10 @@
  * - faber init              Initialize FABER configuration
  * - faber run               Run FABER workflow
  * - faber status            Show workflow status
- * - faber plan              Create/view execution plan
+ * - faber resume            Resume a paused workflow
+ * - faber pause             Pause a running workflow
+ * - faber recover           Recover a workflow from checkpoint
+ * - faber cleanup           Clean up old workflow states
  * - faber work              Work item tracking (issue, comment, label, milestone)
  * - faber repo              Repository operations (branch, commit, pr, tag, worktree)
  * - faber spec              Specification management
@@ -25,7 +28,14 @@ import { createWorkCommand } from './commands/work';
 import { createRepoCommand } from './commands/repo';
 import { createSpecCommand } from './commands/spec';
 import { createLogsCommand } from './commands/logs';
-import { createRunCommand, createStatusCommand, createPlanCommand } from './commands/workflow';
+import {
+  createRunCommand,
+  createStatusCommand,
+  createResumeCommand,
+  createPauseCommand,
+  createRecoverCommand,
+  createCleanupCommand,
+} from './commands/workflow';
 
 /**
  * Create and configure the faber command
@@ -41,7 +51,10 @@ export function createFaberCommand(): Command {
   faber.addCommand(createInitCommand());
   faber.addCommand(createRunCommand());
   faber.addCommand(createStatusCommand());
-  faber.addCommand(createPlanCommand());
+  faber.addCommand(createResumeCommand());
+  faber.addCommand(createPauseCommand());
+  faber.addCommand(createRecoverCommand());
+  faber.addCommand(createCleanupCommand());
 
   // Subcommand trees
   faber.addCommand(createWorkCommand());

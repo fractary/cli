@@ -1,7 +1,7 @@
 /**
  * Repo subcommand - Repository operations
  *
- * Provides branch, commit, pr, tag, and worktree operations via RepoManager SDK.
+ * Provides branch, commit, pr, tag, and worktree operations via @fractary/faber RepoManager.
  */
 import { Command } from 'commander';
 /**

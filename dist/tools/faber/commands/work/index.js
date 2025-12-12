@@ -2,7 +2,7 @@
 /**
  * Work subcommand - Work tracking operations
  *
- * Provides issue, comment, label, and milestone operations via WorkManager SDK.
+ * Provides issue, comment, label, and milestone operations via @fractary/faber WorkManager.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -42,7 +42,7 @@ function createWorkCommand() {
         .description('Milestone operations');
     milestone.addCommand(createMilestoneCreateCommand());
     milestone.addCommand(createMilestoneListCommand());
-    milestone.addCommand(createMilestoneAssignCommand());
+    milestone.addCommand(createMilestoneSetCommand());
     work.addCommand(issue);
     work.addCommand(comment);
     work.addCommand(label);
@@ -59,7 +59,7 @@ function createIssueFetchCommand() {
         .action(async (number, options) => {
         try {
             const workManager = await (0, sdk_1.getWorkManager)();
-            const issue = await workManager.getIssue(parseInt(number, 10));
+            const issue = await workManager.fetchIssue(parseInt(number, 10));
             if (options.json) {
                 console.log(JSON.stringify({ status: 'success', data: issue }, null, 2));
             }
@@ -80,8 +80,9 @@ function createIssueCreateCommand() {
     return new commander_1.Command('create')
         .description('Create a new work item')
         .requiredOption('--title <title>', 'Issue title')
-        .option('--type <type>', 'Issue type (feature, bug, chore)', 'feature')
         .option('--body <body>', 'Issue body')
+        .option('--labels <labels>', 'Comma-separated labels')
+        .option('--assignees <assignees>', 'Comma-separated assignees')
         .option('--json', 'Output as JSON')
         .action(async (options) => {
         try {
@@ -89,7 +90,8 @@ function createIssueCreateCommand() {
             const issue = await workManager.createIssue({
                 title: options.title,
                 body: options.body,
-                type: options.type,
+                labels: options.labels?.split(',').map((l) => l.trim()),
+                assignees: options.assignees?.split(',').map((a) => a.trim()),
             });
             if (options.json) {
                 console.log(JSON.stringify({ status: 'success', data: issue }, null, 2));
@@ -109,6 +111,7 @@ function createIssueUpdateCommand() {
         .argument('<number>', 'Issue number')
         .option('--title <title>', 'New title')
         .option('--body <body>', 'New body')
+        .option('--state <state>', 'New state (open, closed)')
         .option('--json', 'Output as JSON')
         .action(async (number, options) => {
         try {
@@ -116,6 +119,7 @@ function createIssueUpdateCommand() {
             const issue = await workManager.updateIssue(parseInt(number, 10), {
                 title: options.title,
                 body: options.body,
+                state: options.state,
             });
             if (options.json) {
                 console.log(JSON.stringify({ status: 'success', data: issue }, null, 2));
@@ -138,9 +142,13 @@ function createIssueCloseCommand() {
         .action(async (number, options) => {
         try {
             const workManager = await (0, sdk_1.getWorkManager)();
-            await workManager.closeIssue(parseInt(number, 10), options.comment);
+            // Add comment if provided
+            if (options.comment) {
+                await workManager.createComment(parseInt(number, 10), options.comment);
+            }
+            const issue = await workManager.closeIssue(parseInt(number, 10));
             if (options.json) {
-                console.log(JSON.stringify({ status: 'success', data: { number, closed: true } }, null, 2));
+                console.log(JSON.stringify({ status: 'success', data: issue }, null, 2));
             }
             else {
                 console.log(chalk_1.default.green(`✓ Closed issue #${number}`));
@@ -156,25 +164,27 @@ function createIssueSearchCommand() {
         .description('Search work items')
         .requiredOption('--query <query>', 'Search query')
         .option('--state <state>', 'Filter by state (open, closed, all)', 'open')
+        .option('--labels <labels>', 'Filter by labels (comma-separated)')
         .option('--limit <n>', 'Max results', '10')
         .option('--json', 'Output as JSON')
         .action(async (options) => {
         try {
             const workManager = await (0, sdk_1.getWorkManager)();
-            const issues = await workManager.searchIssues({
-                query: options.query,
+            const issues = await workManager.searchIssues(options.query, {
                 state: options.state,
-                limit: parseInt(options.limit, 10),
+                labels: options.labels?.split(',').map((l) => l.trim()),
             });
+            // Note: Limit is handled client-side as IssueFilters doesn't support it
+            const limitedIssues = options.limit ? issues.slice(0, parseInt(options.limit, 10)) : issues;
             if (options.json) {
-                console.log(JSON.stringify({ status: 'success', data: issues }, null, 2));
+                console.log(JSON.stringify({ status: 'success', data: limitedIssues }, null, 2));
             }
             else {
-                if (issues.length === 0) {
+                if (limitedIssues.length === 0) {
                     console.log(chalk_1.default.yellow('No issues found'));
                 }
                 else {
-                    issues.forEach((issue) => {
+                    limitedIssues.forEach((issue) => {
                         console.log(`#${issue.number} ${issue.title} [${issue.state}]`);
                     });
                 }
@@ -229,7 +239,7 @@ function createCommentListCommand() {
                 }
                 else {
                     comments.forEach((comment) => {
-                        console.log(chalk_1.default.gray(`[${comment.author}] ${comment.createdAt}`));
+                        console.log(chalk_1.default.gray(`[${comment.author}] ${comment.created_at}`));
                         console.log(comment.body);
                         console.log('');
                     });
@@ -244,19 +254,20 @@ function createCommentListCommand() {
 // Label Commands
 function createLabelAddCommand() {
     return new commander_1.Command('add')
-        .description('Add a label to an issue')
+        .description('Add labels to an issue')
         .argument('<issue_number>', 'Issue number')
-        .requiredOption('--label <name>', 'Label name')
+        .requiredOption('--label <names>', 'Label name(s), comma-separated')
         .option('--json', 'Output as JSON')
         .action(async (issueNumber, options) => {
         try {
             const workManager = await (0, sdk_1.getWorkManager)();
-            await workManager.addLabel(parseInt(issueNumber, 10), options.label);
+            const labels = options.label.split(',').map((l) => l.trim());
+            const result = await workManager.addLabels(parseInt(issueNumber, 10), labels);
             if (options.json) {
-                console.log(JSON.stringify({ status: 'success', data: { added: options.label } }, null, 2));
+                console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
             }
             else {
-                console.log(chalk_1.default.green(`✓ Added label '${options.label}' to issue #${issueNumber}`));
+                console.log(chalk_1.default.green(`✓ Added label(s) to issue #${issueNumber}`));
             }
         }
         catch (error) {
@@ -266,19 +277,20 @@ function createLabelAddCommand() {
 }
 function createLabelRemoveCommand() {
     return new commander_1.Command('remove')
-        .description('Remove a label from an issue')
+        .description('Remove labels from an issue')
         .argument('<issue_number>', 'Issue number')
-        .requiredOption('--label <name>', 'Label name')
+        .requiredOption('--label <names>', 'Label name(s), comma-separated')
         .option('--json', 'Output as JSON')
         .action(async (issueNumber, options) => {
         try {
             const workManager = await (0, sdk_1.getWorkManager)();
-            await workManager.removeLabel(parseInt(issueNumber, 10), options.label);
+            const labels = options.label.split(',').map((l) => l.trim());
+            await workManager.removeLabels(parseInt(issueNumber, 10), labels);
             if (options.json) {
-                console.log(JSON.stringify({ status: 'success', data: { removed: options.label } }, null, 2));
+                console.log(JSON.stringify({ status: 'success', data: { removed: labels } }, null, 2));
             }
             else {
-                console.log(chalk_1.default.green(`✓ Removed label '${options.label}' from issue #${issueNumber}`));
+                console.log(chalk_1.default.green(`✓ Removed label(s) from issue #${issueNumber}`));
             }
         }
         catch (error) {
@@ -295,7 +307,7 @@ function createLabelListCommand() {
         try {
             const workManager = await (0, sdk_1.getWorkManager)();
             const labels = options.issue
-                ? await workManager.getIssueLabels(parseInt(options.issue, 10))
+                ? await workManager.listLabels(parseInt(options.issue, 10))
                 : await workManager.listLabels();
             if (options.json) {
                 console.log(JSON.stringify({ status: 'success', data: labels }, null, 2));
@@ -321,16 +333,16 @@ function createMilestoneCreateCommand() {
     return new commander_1.Command('create')
         .description('Create a milestone')
         .requiredOption('--title <title>', 'Milestone title')
-        .option('--due <date>', 'Due date (YYYY-MM-DD)')
         .option('--description <text>', 'Milestone description')
+        .option('--due-on <date>', 'Due date (ISO format)')
         .option('--json', 'Output as JSON')
         .action(async (options) => {
         try {
             const workManager = await (0, sdk_1.getWorkManager)();
             const milestone = await workManager.createMilestone({
                 title: options.title,
-                dueDate: options.due,
                 description: options.description,
+                due_on: options.dueOn,
             });
             if (options.json) {
                 console.log(JSON.stringify({ status: 'success', data: milestone }, null, 2));
@@ -352,9 +364,7 @@ function createMilestoneListCommand() {
         .action(async (options) => {
         try {
             const workManager = await (0, sdk_1.getWorkManager)();
-            const milestones = await workManager.listMilestones({
-                state: options.state,
-            });
+            const milestones = await workManager.listMilestones(options.state);
             if (options.json) {
                 console.log(JSON.stringify({ status: 'success', data: milestones }, null, 2));
             }
@@ -374,21 +384,21 @@ function createMilestoneListCommand() {
         }
     });
 }
-function createMilestoneAssignCommand() {
-    return new commander_1.Command('assign')
-        .description('Assign an issue to a milestone')
+function createMilestoneSetCommand() {
+    return new commander_1.Command('set')
+        .description('Set milestone on an issue')
         .argument('<issue_number>', 'Issue number')
-        .requiredOption('--milestone <id>', 'Milestone ID or title')
+        .requiredOption('--milestone <title>', 'Milestone title')
         .option('--json', 'Output as JSON')
         .action(async (issueNumber, options) => {
         try {
             const workManager = await (0, sdk_1.getWorkManager)();
-            await workManager.assignMilestone(parseInt(issueNumber, 10), options.milestone);
+            const issue = await workManager.setMilestone(parseInt(issueNumber, 10), options.milestone);
             if (options.json) {
-                console.log(JSON.stringify({ status: 'success', data: { assigned: options.milestone } }, null, 2));
+                console.log(JSON.stringify({ status: 'success', data: issue }, null, 2));
             }
             else {
-                console.log(chalk_1.default.green(`✓ Assigned issue #${issueNumber} to milestone '${options.milestone}'`));
+                console.log(chalk_1.default.green(`✓ Set milestone '${options.milestone}' on issue #${issueNumber}`));
             }
         }
         catch (error) {

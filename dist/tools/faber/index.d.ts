@@ -8,7 +8,10 @@
  * - faber init              Initialize FABER configuration
  * - faber run               Run FABER workflow
  * - faber status            Show workflow status
- * - faber plan              Create/view execution plan
+ * - faber resume            Resume a paused workflow
+ * - faber pause             Pause a running workflow
+ * - faber recover           Recover a workflow from checkpoint
+ * - faber cleanup           Clean up old workflow states
  * - faber work              Work item tracking (issue, comment, label, milestone)
  * - faber repo              Repository operations (branch, commit, pr, tag, worktree)
  * - faber spec              Specification management

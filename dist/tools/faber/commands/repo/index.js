@@ -2,7 +2,7 @@
 /**
  * Repo subcommand - Repository operations
  *
- * Provides branch, commit, pr, tag, and worktree operations via RepoManager SDK.
+ * Provides branch, commit, pr, tag, and worktree operations via @fractary/faber RepoManager.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -25,17 +25,14 @@ function createRepoCommand() {
     branch.addCommand(createBranchDeleteCommand());
     branch.addCommand(createBranchListCommand());
     // Commit operations
-    const commit = new commander_1.Command('commit')
-        .description('Commit operations');
-    commit.addCommand(createCommitCreateCommand());
-    commit.addCommand(createCommitAndPushCommand());
+    repo.addCommand(createCommitCommand());
     // Pull request operations
     const pr = new commander_1.Command('pr')
         .description('Pull request operations');
     pr.addCommand(createPRCreateCommand());
-    pr.addCommand(createPRReviewCommand());
-    pr.addCommand(createPRMergeCommand());
     pr.addCommand(createPRListCommand());
+    pr.addCommand(createPRMergeCommand());
+    pr.addCommand(createPRReviewCommand());
     // Tag operations
     const tag = new commander_1.Command('tag')
         .description('Tag operations');
@@ -52,8 +49,8 @@ function createRepoCommand() {
     // Push/Pull operations
     repo.addCommand(createPushCommand());
     repo.addCommand(createPullCommand());
+    repo.addCommand(createStatusCommand());
     repo.addCommand(branch);
-    repo.addCommand(commit);
     repo.addCommand(pr);
     repo.addCommand(tag);
     repo.addCommand(worktree);
@@ -63,28 +60,22 @@ function createRepoCommand() {
 function createBranchCreateCommand() {
     return new commander_1.Command('create')
         .description('Create a new branch')
-        .requiredOption('--description <desc>', 'Branch description for naming')
-        .option('--work-id <id>', 'Associated work item ID')
-        .option('--base <branch>', 'Base branch', 'main')
-        .option('--worktree', 'Also create a worktree')
+        .argument('<name>', 'Branch name')
+        .option('--base <branch>', 'Base branch')
+        .option('--checkout', 'Checkout after creation')
         .option('--json', 'Output as JSON')
-        .action(async (options) => {
+        .action(async (name, options) => {
         try {
             const repoManager = await (0, sdk_1.getRepoManager)();
-            const result = await repoManager.createBranch({
-                description: options.description,
-                workId: options.workId,
+            const branch = await repoManager.createBranch(name, {
                 baseBranch: options.base,
-                createWorktree: options.worktree,
+                checkout: options.checkout,
             });
             if (options.json) {
-                console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
+                console.log(JSON.stringify({ status: 'success', data: branch }, null, 2));
             }
             else {
-                console.log(chalk_1.default.green(`✓ Created branch: ${result.branchName}`));
-                if (result.worktreePath) {
-                    console.log(chalk_1.default.gray(`  Worktree: ${result.worktreePath}`));
-                }
+                console.log(chalk_1.default.green(`✓ Created branch: ${branch.name}`));
             }
         }
         catch (error) {
@@ -96,7 +87,7 @@ function createBranchDeleteCommand() {
     return new commander_1.Command('delete')
         .description('Delete a branch')
         .argument('<name>', 'Branch name')
-        .option('--location <where>', 'Where to delete (local, remote, both)', 'local')
+        .option('--location <where>', 'Delete location: local|remote|both', 'local')
         .option('--force', 'Force delete even if not merged')
         .option('--json', 'Output as JSON')
         .action(async (name, options) => {
@@ -121,17 +112,19 @@ function createBranchDeleteCommand() {
 function createBranchListCommand() {
     return new commander_1.Command('list')
         .description('List branches')
-        .option('--stale', 'Show only stale branches')
         .option('--merged', 'Show only merged branches')
+        .option('--stale', 'Show stale branches')
         .option('--pattern <glob>', 'Filter by pattern')
+        .option('--limit <n>', 'Limit results')
         .option('--json', 'Output as JSON')
         .action(async (options) => {
         try {
             const repoManager = await (0, sdk_1.getRepoManager)();
             const branches = await repoManager.listBranches({
-                stale: options.stale,
                 merged: options.merged,
+                stale: options.stale,
                 pattern: options.pattern,
+                limit: options.limit ? parseInt(options.limit, 10) : undefined,
             });
             if (options.json) {
                 console.log(JSON.stringify({ status: 'success', data: branches }, null, 2));
@@ -142,8 +135,9 @@ function createBranchListCommand() {
                 }
                 else {
                     branches.forEach((branch) => {
-                        const current = branch.current ? chalk_1.default.green('* ') : '  ';
-                        console.log(`${current}${branch.name}`);
+                        const prefix = branch.isDefault ? chalk_1.default.green('* ') : '  ';
+                        const protection = branch.isProtected ? chalk_1.default.yellow(' [protected]') : '';
+                        console.log(`${prefix}${branch.name}${protection}`);
                     });
                 }
             }
@@ -153,57 +147,37 @@ function createBranchListCommand() {
         }
     });
 }
-// Commit Commands
-function createCommitCreateCommand() {
-    return new commander_1.Command('create')
+// Commit Command
+function createCommitCommand() {
+    return new commander_1.Command('commit')
         .description('Create a commit')
         .requiredOption('--message <msg>', 'Commit message')
         .option('--type <type>', 'Commit type (feat, fix, chore, etc.)', 'feat')
         .option('--scope <scope>', 'Commit scope')
         .option('--work-id <id>', 'Associated work item ID')
+        .option('--breaking', 'Mark as breaking change')
+        .option('--all', 'Stage all changes before committing')
         .option('--json', 'Output as JSON')
         .action(async (options) => {
         try {
             const repoManager = await (0, sdk_1.getRepoManager)();
-            const result = await repoManager.createCommit({
+            // Stage all changes if requested
+            if (options.all) {
+                repoManager.stageAll();
+            }
+            const commit = repoManager.commit({
                 message: options.message,
                 type: options.type,
                 scope: options.scope,
                 workId: options.workId,
+                breaking: options.breaking,
             });
             if (options.json) {
-                console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
+                console.log(JSON.stringify({ status: 'success', data: commit }, null, 2));
             }
             else {
-                console.log(chalk_1.default.green(`✓ Created commit: ${result.sha.slice(0, 7)}`));
-                console.log(chalk_1.default.gray(`  ${result.message}`));
-            }
-        }
-        catch (error) {
-            handleRepoError(error, options);
-        }
-    });
-}
-function createCommitAndPushCommand() {
-    return new commander_1.Command('commit-and-push')
-        .description('Create a commit and push')
-        .requiredOption('--message <msg>', 'Commit message')
-        .option('--type <type>', 'Commit type (feat, fix, chore, etc.)', 'feat')
-        .option('--set-upstream', 'Set upstream tracking')
-        .option('--json', 'Output as JSON')
-        .action(async (options) => {
-        try {
-            const repoManager = await (0, sdk_1.getRepoManager)();
-            const result = await repoManager.commitAndPush({
-                message: options.message,
-                type: options.type,
-                setUpstream: options.setUpstream,
-            });
-            if (options.json) {
-                console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
-            }
-            else {
-                console.log(chalk_1.default.green(`✓ Created and pushed commit: ${result.sha.slice(0, 7)}`));
+                console.log(chalk_1.default.green(`✓ Created commit: ${commit.sha.slice(0, 7)}`));
+                console.log(chalk_1.default.gray(`  ${commit.message}`));
             }
         }
         catch (error) {
@@ -218,78 +192,25 @@ function createPRCreateCommand() {
         .requiredOption('--title <title>', 'PR title')
         .option('--body <text>', 'PR body')
         .option('--base <branch>', 'Base branch', 'main')
+        .option('--head <branch>', 'Head branch (current by default)')
         .option('--draft', 'Create as draft')
         .option('--json', 'Output as JSON')
         .action(async (options) => {
         try {
             const repoManager = await (0, sdk_1.getRepoManager)();
-            const result = await repoManager.createPR({
+            const pr = await repoManager.createPR({
                 title: options.title,
                 body: options.body,
-                baseBranch: options.base,
+                base: options.base,
+                head: options.head,
                 draft: options.draft,
             });
             if (options.json) {
-                console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
+                console.log(JSON.stringify({ status: 'success', data: pr }, null, 2));
             }
             else {
-                console.log(chalk_1.default.green(`✓ Created PR #${result.number}: ${result.title}`));
-                console.log(chalk_1.default.gray(`  ${result.url}`));
-            }
-        }
-        catch (error) {
-            handleRepoError(error, options);
-        }
-    });
-}
-function createPRReviewCommand() {
-    return new commander_1.Command('review')
-        .description('Review a pull request')
-        .argument('<number>', 'PR number')
-        .option('--action <action>', 'Review action (approve, request_changes, comment)', 'approve')
-        .option('--comment <text>', 'Review comment')
-        .option('--json', 'Output as JSON')
-        .action(async (number, options) => {
-        try {
-            const repoManager = await (0, sdk_1.getRepoManager)();
-            const result = await repoManager.reviewPR(parseInt(number, 10), {
-                action: options.action,
-                comment: options.comment,
-            });
-            if (options.json) {
-                console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
-            }
-            else {
-                console.log(chalk_1.default.green(`✓ Submitted review for PR #${number}`));
-            }
-        }
-        catch (error) {
-            handleRepoError(error, options);
-        }
-    });
-}
-function createPRMergeCommand() {
-    return new commander_1.Command('merge')
-        .description('Merge a pull request')
-        .argument('<number>', 'PR number')
-        .option('--strategy <strategy>', 'Merge strategy (merge, squash, rebase)', 'squash')
-        .option('--delete-branch', 'Delete branch after merge')
-        .option('--json', 'Output as JSON')
-        .action(async (number, options) => {
-        try {
-            const repoManager = await (0, sdk_1.getRepoManager)();
-            const result = await repoManager.mergePR(parseInt(number, 10), {
-                strategy: options.strategy,
-                deleteBranch: options.deleteBranch,
-            });
-            if (options.json) {
-                console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
-            }
-            else {
-                console.log(chalk_1.default.green(`✓ Merged PR #${number}`));
-                if (options.deleteBranch) {
-                    console.log(chalk_1.default.gray('  Branch deleted'));
-                }
+                console.log(chalk_1.default.green(`✓ Created PR #${pr.number}: ${pr.title}`));
+                console.log(chalk_1.default.gray(`  ${pr.url}`));
             }
         }
         catch (error) {
@@ -329,6 +250,65 @@ function createPRListCommand() {
         }
     });
 }
+function createPRMergeCommand() {
+    return new commander_1.Command('merge')
+        .description('Merge a pull request')
+        .argument('<number>', 'PR number')
+        .option('--strategy <strategy>', 'Merge strategy (merge, squash, rebase)', 'squash')
+        .option('--delete-branch', 'Delete branch after merge')
+        .option('--json', 'Output as JSON')
+        .action(async (number, options) => {
+        try {
+            const repoManager = await (0, sdk_1.getRepoManager)();
+            const pr = await repoManager.mergePR(parseInt(number, 10), {
+                strategy: options.strategy,
+                deleteBranch: options.deleteBranch,
+            });
+            if (options.json) {
+                console.log(JSON.stringify({ status: 'success', data: pr }, null, 2));
+            }
+            else {
+                console.log(chalk_1.default.green(`✓ Merged PR #${number}`));
+                if (options.deleteBranch) {
+                    console.log(chalk_1.default.gray('  Branch deleted'));
+                }
+            }
+        }
+        catch (error) {
+            handleRepoError(error, options);
+        }
+    });
+}
+function createPRReviewCommand() {
+    return new commander_1.Command('review')
+        .description('Review a pull request')
+        .argument('<number>', 'PR number')
+        .option('--approve', 'Approve the PR')
+        .option('--request-changes', 'Request changes')
+        .option('--comment <text>', 'Review comment')
+        .option('--json', 'Output as JSON')
+        .action(async (number, options) => {
+        try {
+            const repoManager = await (0, sdk_1.getRepoManager)();
+            const action = options.approve ? 'approve' :
+                options.requestChanges ? 'request_changes' : 'comment';
+            await repoManager.reviewPR(parseInt(number, 10), {
+                action,
+                comment: options.comment,
+            });
+            if (options.json) {
+                console.log(JSON.stringify({ status: 'success', data: { reviewed: number } }, null, 2));
+            }
+            else {
+                const action = options.approve ? 'Approved' : options.requestChanges ? 'Requested changes on' : 'Commented on';
+                console.log(chalk_1.default.green(`✓ ${action} PR #${number}`));
+            }
+        }
+        catch (error) {
+            handleRepoError(error, options);
+        }
+    });
+}
 // Tag Commands
 function createTagCreateCommand() {
     return new commander_1.Command('create')
@@ -340,12 +320,13 @@ function createTagCreateCommand() {
         .action(async (name, options) => {
         try {
             const repoManager = await (0, sdk_1.getRepoManager)();
-            const result = await repoManager.createTag(name, {
+            repoManager.createTag(name, {
+                name,
                 message: options.message,
                 sign: options.sign,
             });
             if (options.json) {
-                console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
+                console.log(JSON.stringify({ status: 'success', data: { name } }, null, 2));
             }
             else {
                 console.log(chalk_1.default.green(`✓ Created tag: ${name}`));
@@ -365,7 +346,7 @@ function createTagPushCommand() {
         .action(async (name, options) => {
         try {
             const repoManager = await (0, sdk_1.getRepoManager)();
-            await repoManager.pushTag(name, { remote: options.remote });
+            repoManager.pushTag(name, options.remote);
             if (options.json) {
                 console.log(JSON.stringify({ status: 'success', data: { pushed: name } }, null, 2));
             }
@@ -387,7 +368,7 @@ function createTagListCommand() {
         .action(async (options) => {
         try {
             const repoManager = await (0, sdk_1.getRepoManager)();
-            const tags = await repoManager.listTags({
+            const tags = repoManager.listTags({
                 pattern: options.pattern,
                 latest: options.latest ? parseInt(options.latest, 10) : undefined,
             });
@@ -415,19 +396,22 @@ function createWorktreeCreateCommand() {
     return new commander_1.Command('create')
         .description('Create a worktree')
         .argument('<branch>', 'Branch name')
+        .option('--path <path>', 'Worktree path')
         .option('--work-id <id>', 'Associated work item ID')
         .option('--json', 'Output as JSON')
         .action(async (branch, options) => {
         try {
             const repoManager = await (0, sdk_1.getRepoManager)();
-            const result = await repoManager.createWorktree(branch, {
+            const worktree = repoManager.createWorktree({
+                branch,
+                path: options.path,
                 workId: options.workId,
             });
             if (options.json) {
-                console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
+                console.log(JSON.stringify({ status: 'success', data: worktree }, null, 2));
             }
             else {
-                console.log(chalk_1.default.green(`✓ Created worktree: ${result.path}`));
+                console.log(chalk_1.default.green(`✓ Created worktree: ${worktree.path}`));
             }
         }
         catch (error) {
@@ -442,7 +426,7 @@ function createWorktreeListCommand() {
         .action(async (options) => {
         try {
             const repoManager = await (0, sdk_1.getRepoManager)();
-            const worktrees = await repoManager.listWorktrees();
+            const worktrees = repoManager.listWorktrees();
             if (options.json) {
                 console.log(JSON.stringify({ status: 'success', data: worktrees }, null, 2));
             }
@@ -465,18 +449,18 @@ function createWorktreeListCommand() {
 function createWorktreeRemoveCommand() {
     return new commander_1.Command('remove')
         .description('Remove a worktree')
-        .argument('<branch>', 'Branch name')
+        .argument('<path>', 'Worktree path')
         .option('--force', 'Force removal')
         .option('--json', 'Output as JSON')
-        .action(async (branch, options) => {
+        .action(async (path, options) => {
         try {
             const repoManager = await (0, sdk_1.getRepoManager)();
-            await repoManager.removeWorktree(branch, { force: options.force });
+            repoManager.removeWorktree(path, options.force);
             if (options.json) {
-                console.log(JSON.stringify({ status: 'success', data: { removed: branch } }, null, 2));
+                console.log(JSON.stringify({ status: 'success', data: { removed: path } }, null, 2));
             }
             else {
-                console.log(chalk_1.default.green(`✓ Removed worktree: ${branch}`));
+                console.log(chalk_1.default.green(`✓ Removed worktree: ${path}`));
             }
         }
         catch (error) {
@@ -503,12 +487,12 @@ function createWorktreeCleanupCommand() {
                 console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
             }
             else {
-                if (result.cleaned.length === 0) {
+                const prefix = options.dryRun ? 'Would clean' : 'Cleaned';
+                if (result.removed.length === 0) {
                     console.log(chalk_1.default.yellow('No worktrees to clean'));
                 }
                 else {
-                    const prefix = options.dryRun ? 'Would clean' : 'Cleaned';
-                    result.cleaned.forEach((wt) => {
+                    result.removed.forEach((wt) => {
                         console.log(chalk_1.default.green(`✓ ${prefix}: ${wt}`));
                     });
                 }
@@ -530,13 +514,13 @@ function createPushCommand() {
         .action(async (options) => {
         try {
             const repoManager = await (0, sdk_1.getRepoManager)();
-            const result = await repoManager.push({
+            repoManager.push({
                 remote: options.remote,
                 setUpstream: options.setUpstream,
                 force: options.force,
             });
             if (options.json) {
-                console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
+                console.log(JSON.stringify({ status: 'success', data: { pushed: true } }, null, 2));
             }
             else {
                 console.log(chalk_1.default.green('✓ Pushed to remote'));
@@ -551,20 +535,64 @@ function createPullCommand() {
     return new commander_1.Command('pull')
         .description('Pull from remote')
         .option('--rebase', 'Use rebase instead of merge')
-        .option('--strategy <strategy>', 'Pull strategy (merge, rebase, ff-only)', 'merge')
+        .option('--remote <name>', 'Remote name', 'origin')
         .option('--json', 'Output as JSON')
         .action(async (options) => {
         try {
             const repoManager = await (0, sdk_1.getRepoManager)();
-            const result = await repoManager.pull({
+            repoManager.pull({
                 rebase: options.rebase,
-                strategy: options.strategy,
+                remote: options.remote,
             });
             if (options.json) {
-                console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
+                console.log(JSON.stringify({ status: 'success', data: { pulled: true } }, null, 2));
             }
             else {
                 console.log(chalk_1.default.green('✓ Pulled from remote'));
+            }
+        }
+        catch (error) {
+            handleRepoError(error, options);
+        }
+    });
+}
+function createStatusCommand() {
+    return new commander_1.Command('status')
+        .description('Show repository status')
+        .option('--json', 'Output as JSON')
+        .action(async (options) => {
+        try {
+            const repoManager = await (0, sdk_1.getRepoManager)();
+            const status = repoManager.getStatus();
+            const branch = repoManager.getCurrentBranch();
+            if (options.json) {
+                console.log(JSON.stringify({ status: 'success', data: { branch, ...status } }, null, 2));
+            }
+            else {
+                const isClean = status.staged.length === 0 &&
+                    status.modified.length === 0 &&
+                    status.untracked.length === 0 &&
+                    status.conflicts.length === 0;
+                console.log(chalk_1.default.bold(`Branch: ${branch}`));
+                console.log(`Clean: ${isClean ? chalk_1.default.green('yes') : chalk_1.default.yellow('no')}`);
+                if (status.ahead > 0) {
+                    console.log(chalk_1.default.cyan(`Ahead: ${status.ahead} commit(s)`));
+                }
+                if (status.behind > 0) {
+                    console.log(chalk_1.default.yellow(`Behind: ${status.behind} commit(s)`));
+                }
+                if (status.staged.length > 0) {
+                    console.log(chalk_1.default.green(`Staged: ${status.staged.length} file(s)`));
+                }
+                if (status.modified.length > 0) {
+                    console.log(chalk_1.default.yellow(`Modified: ${status.modified.length} file(s)`));
+                }
+                if (status.untracked.length > 0) {
+                    console.log(chalk_1.default.gray(`Untracked: ${status.untracked.length} file(s)`));
+                }
+                if (status.conflicts.length > 0) {
+                    console.log(chalk_1.default.red(`Conflicts: ${status.conflicts.length} file(s)`));
+                }
             }
         }
         catch (error) {

@@ -1,7 +1,7 @@
 /**
  * Spec subcommand - Specification management
  *
- * Provides spec create, refine, validate, archive, read, list, update operations via SpecManager SDK.
+ * Provides spec operations via @fractary/faber SpecManager.
  */
 
 import { Command } from 'commander';
@@ -16,12 +16,13 @@ export function createSpecCommand(): Command {
     .description('Specification management');
 
   spec.addCommand(createSpecCreateCommand());
-  spec.addCommand(createSpecRefineCommand());
-  spec.addCommand(createSpecValidateCommand());
-  spec.addCommand(createSpecArchiveCommand());
-  spec.addCommand(createSpecReadCommand());
+  spec.addCommand(createSpecGetCommand());
   spec.addCommand(createSpecListCommand());
   spec.addCommand(createSpecUpdateCommand());
+  spec.addCommand(createSpecValidateCommand());
+  spec.addCommand(createSpecRefineCommand());
+  spec.addCommand(createSpecDeleteCommand());
+  spec.addCommand(createSpecTemplatesCommand());
 
   return spec;
 }
@@ -29,154 +30,60 @@ export function createSpecCommand(): Command {
 function createSpecCreateCommand(): Command {
   return new Command('create')
     .description('Create a new specification')
-    .requiredOption('--work-id <id>', 'Work item ID')
-    .option('--template <type>', 'Specification template', 'feature')
-    .option('--force', 'Overwrite existing spec')
+    .argument('<title>', 'Specification title')
+    .option('--template <type>', 'Specification template (feature, bugfix, refactor)', 'feature')
+    .option('--work-id <id>', 'Associated work item ID')
     .option('--json', 'Output as JSON')
-    .action(async (options) => {
+    .action(async (title: string, options) => {
       try {
         const specManager = await getSpecManager();
-        const result = await specManager.create({
-          workId: options.workId,
+        const spec = specManager.createSpec(title, {
           template: options.template,
-          force: options.force,
-        });
-
-        if (options.json) {
-          console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
-        } else {
-          console.log(chalk.green(`✓ Created specification for work item #${options.workId}`));
-          console.log(chalk.gray(`  Path: ${result.path}`));
-        }
-      } catch (error) {
-        handleSpecError(error, options);
-      }
-    });
-}
-
-function createSpecRefineCommand(): Command {
-  return new Command('refine')
-    .description('Refine specification with Q&A')
-    .requiredOption('--work-id <id>', 'Work item ID')
-    .option('--prompt <focus>', 'Focus area for refinement')
-    .option('--round <n>', 'Refinement round number', '1')
-    .option('--json', 'Output as JSON')
-    .action(async (options) => {
-      try {
-        const specManager = await getSpecManager();
-        const result = await specManager.refine({
           workId: options.workId,
-          prompt: options.prompt,
-          round: parseInt(options.round, 10),
-        });
-
-        if (options.json) {
-          console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
-        } else {
-          console.log(chalk.green(`✓ Refined specification (round ${options.round})`));
-          if (result.questions && result.questions.length > 0) {
-            console.log(chalk.yellow('\nQuestions to address:'));
-            result.questions.forEach((q: string, i: number) => {
-              console.log(`  ${i + 1}. ${q}`);
-            });
-          }
-        }
-      } catch (error) {
-        handleSpecError(error, options);
-      }
-    });
-}
-
-function createSpecValidateCommand(): Command {
-  return new Command('validate')
-    .description('Validate implementation against spec')
-    .requiredOption('--work-id <id>', 'Work item ID')
-    .option('--phase <phase>', 'Specific phase to validate')
-    .option('--json', 'Output as JSON')
-    .action(async (options) => {
-      try {
-        const specManager = await getSpecManager();
-        const result = await specManager.validate({
-          workId: options.workId,
-          phase: options.phase,
-        });
-
-        if (options.json) {
-          console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
-        } else {
-          if (result.valid) {
-            console.log(chalk.green('✓ Specification validation passed'));
-          } else {
-            console.log(chalk.red('✗ Specification validation failed'));
-            if (result.errors && result.errors.length > 0) {
-              result.errors.forEach((err: string) => {
-                console.log(chalk.red(`  - ${err}`));
-              });
-            }
-          }
-
-          if (result.checklist) {
-            console.log(chalk.yellow('\nChecklist:'));
-            result.checklist.forEach((item: any) => {
-              const status = item.complete ? chalk.green('✓') : chalk.red('✗');
-              console.log(`  ${status} ${item.task}`);
-            });
-          }
-        }
-      } catch (error) {
-        handleSpecError(error, options);
-      }
-    });
-}
-
-function createSpecArchiveCommand(): Command {
-  return new Command('archive')
-    .description('Archive specification to cloud storage')
-    .requiredOption('--work-id <id>', 'Work item ID')
-    .option('--force', 'Force archive even if incomplete')
-    .option('--json', 'Output as JSON')
-    .action(async (options) => {
-      try {
-        const specManager = await getSpecManager();
-        const result = await specManager.archive({
-          workId: options.workId,
-          force: options.force,
-        });
-
-        if (options.json) {
-          console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
-        } else {
-          console.log(chalk.green(`✓ Archived specification`));
-          if (result.url) {
-            console.log(chalk.gray(`  URL: ${result.url}`));
-          }
-        }
-      } catch (error) {
-        handleSpecError(error, options);
-      }
-    });
-}
-
-function createSpecReadCommand(): Command {
-  return new Command('read')
-    .description('Read a specification')
-    .requiredOption('--work-id <id>', 'Work item ID')
-    .option('--phase <n>', 'Specific phase to read')
-    .option('--json', 'Output as JSON')
-    .action(async (options) => {
-      try {
-        const specManager = await getSpecManager();
-        const spec = await specManager.read({
-          workId: options.workId,
-          phase: options.phase,
         });
 
         if (options.json) {
           console.log(JSON.stringify({ status: 'success', data: spec }, null, 2));
         } else {
-          console.log(chalk.bold(`Specification: ${spec.title || `Work Item #${options.workId}`}`));
-          console.log(chalk.gray(`Status: ${spec.status}`));
-          console.log(chalk.gray(`Last Updated: ${spec.updatedAt}`));
+          console.log(chalk.green(`✓ Created specification: ${spec.title}`));
+          console.log(chalk.gray(`  ID: ${spec.id}`));
+          console.log(chalk.gray(`  Path: ${spec.path}`));
+        }
+      } catch (error) {
+        handleSpecError(error, options);
+      }
+    });
+}
+
+function createSpecGetCommand(): Command {
+  return new Command('get')
+    .description('Get a specification by ID or path')
+    .argument('<id>', 'Specification ID or path')
+    .option('--json', 'Output as JSON')
+    .action(async (id: string, options) => {
+      try {
+        const specManager = await getSpecManager();
+        const spec = specManager.getSpec(id);
+
+        if (!spec) {
+          if (options.json) {
+            console.error(JSON.stringify({
+              status: 'error',
+              error: { code: 'SPEC_NOT_FOUND', message: `Specification not found: ${id}` },
+            }));
+          } else {
+            console.error(chalk.red(`Specification not found: ${id}`));
+          }
+          process.exit(5);
+        }
+
+        if (options.json) {
+          console.log(JSON.stringify({ status: 'success', data: spec }, null, 2));
+        } else {
+          console.log(chalk.bold(`${spec.title}`));
+          console.log(chalk.gray(`ID: ${spec.id}`));
+          console.log(chalk.gray(`Status: ${spec.metadata.validation_status || 'not_validated'}`));
+          console.log(chalk.gray(`Work ID: ${spec.workId || 'N/A'}`));
           console.log('\n' + spec.content);
         }
       } catch (error) {
@@ -188,13 +95,15 @@ function createSpecReadCommand(): Command {
 function createSpecListCommand(): Command {
   return new Command('list')
     .description('List specifications')
-    .option('--status <status>', 'Filter by status (draft, complete, archived)')
+    .option('--status <status>', 'Filter by status (draft, validated, needs_revision)')
+    .option('--work-id <id>', 'Filter by work item ID')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       try {
         const specManager = await getSpecManager();
-        const specs = await specManager.list({
+        const specs = specManager.listSpecs({
           status: options.status,
+          workId: options.workId,
         });
 
         if (options.json) {
@@ -203,10 +112,12 @@ function createSpecListCommand(): Command {
           if (specs.length === 0) {
             console.log(chalk.yellow('No specifications found'));
           } else {
-            specs.forEach((spec: any) => {
-              const statusColor = spec.status === 'complete' ? chalk.green :
-                                  spec.status === 'archived' ? chalk.gray : chalk.yellow;
-              console.log(`#${spec.workId} ${spec.title || '(untitled)'} [${statusColor(spec.status)}]`);
+            specs.forEach((spec) => {
+              const status = spec.metadata.validation_status || 'not_validated';
+              const statusColor = status === 'complete' ? chalk.green :
+                                  status === 'failed' ? chalk.red :
+                                  status === 'partial' ? chalk.yellow : chalk.gray;
+              console.log(`${spec.id} ${spec.title} [${statusColor(status)}]`);
             });
           }
         }
@@ -219,25 +130,136 @@ function createSpecListCommand(): Command {
 function createSpecUpdateCommand(): Command {
   return new Command('update')
     .description('Update a specification')
-    .requiredOption('--work-id <id>', 'Work item ID')
-    .requiredOption('--phase <id>', 'Phase ID to update')
-    .option('--status <status>', 'New status')
-    .option('--check-task <text>', 'Mark a checklist task as complete')
+    .argument('<id>', 'Specification ID or path')
+    .option('--title <title>', 'New title')
+    .option('--content <content>', 'New content')
+    .option('--work-id <id>', 'Associated work item ID')
+    .option('--status <status>', 'Validation status')
     .option('--json', 'Output as JSON')
-    .action(async (options) => {
+    .action(async (id: string, options) => {
       try {
         const specManager = await getSpecManager();
-        const result = await specManager.update({
+        const spec = specManager.updateSpec(id, {
+          title: options.title,
+          content: options.content,
           workId: options.workId,
-          phase: options.phase,
-          status: options.status,
-          checkTask: options.checkTask,
+          validationStatus: options.status,
         });
+
+        if (options.json) {
+          console.log(JSON.stringify({ status: 'success', data: spec }, null, 2));
+        } else {
+          console.log(chalk.green(`✓ Updated specification: ${spec.title}`));
+        }
+      } catch (error) {
+        handleSpecError(error, options);
+      }
+    });
+}
+
+function createSpecValidateCommand(): Command {
+  return new Command('validate')
+    .description('Validate a specification')
+    .argument('<id>', 'Specification ID or path')
+    .option('--json', 'Output as JSON')
+    .action(async (id: string, options) => {
+      try {
+        const specManager = await getSpecManager();
+        const result = specManager.validateSpec(id);
 
         if (options.json) {
           console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
         } else {
-          console.log(chalk.green(`✓ Updated specification`));
+          const statusColor = result.status === 'pass' ? chalk.green :
+                              result.status === 'fail' ? chalk.red : chalk.yellow;
+          console.log(`Validation: ${statusColor(result.status.toUpperCase())}`);
+          console.log(chalk.gray(`  Score: ${result.score}%`));
+
+          // Show check results
+          console.log(chalk.yellow('\nChecks:'));
+          const { requirements, acceptanceCriteria } = result.checks;
+          console.log(`  Requirements: ${requirements.completed}/${requirements.total} [${requirements.status}]`);
+          console.log(`  Acceptance Criteria: ${acceptanceCriteria.met}/${acceptanceCriteria.total} [${acceptanceCriteria.status}]`);
+        }
+      } catch (error) {
+        handleSpecError(error, options);
+      }
+    });
+}
+
+function createSpecRefineCommand(): Command {
+  return new Command('refine')
+    .description('Generate refinement questions for a specification')
+    .argument('<id>', 'Specification ID or path')
+    .option('--json', 'Output as JSON')
+    .action(async (id: string, options) => {
+      try {
+        const specManager = await getSpecManager();
+        const questions = specManager.generateRefinementQuestions(id);
+
+        if (options.json) {
+          console.log(JSON.stringify({ status: 'success', data: questions }, null, 2));
+        } else {
+          if (questions.length === 0) {
+            console.log(chalk.green('✓ Specification appears complete, no refinement questions'));
+          } else {
+            console.log(chalk.yellow('Refinement Questions:'));
+            questions.forEach((q, i) => {
+              const priorityColor = q.priority === 'high' ? chalk.red :
+                                    q.priority === 'medium' ? chalk.yellow : chalk.gray;
+              console.log(`\n${i + 1}. [${priorityColor(q.priority)}] ${q.category}`);
+              console.log(`   ${q.question}`);
+            });
+          }
+        }
+      } catch (error) {
+        handleSpecError(error, options);
+      }
+    });
+}
+
+function createSpecDeleteCommand(): Command {
+  return new Command('delete')
+    .description('Delete a specification')
+    .argument('<id>', 'Specification ID or path')
+    .option('--json', 'Output as JSON')
+    .action(async (id: string, options) => {
+      try {
+        const specManager = await getSpecManager();
+        const deleted = specManager.deleteSpec(id);
+
+        if (options.json) {
+          console.log(JSON.stringify({ status: 'success', data: { deleted } }, null, 2));
+        } else {
+          if (deleted) {
+            console.log(chalk.green(`✓ Deleted specification: ${id}`));
+          } else {
+            console.log(chalk.yellow(`Specification not found: ${id}`));
+          }
+        }
+      } catch (error) {
+        handleSpecError(error, options);
+      }
+    });
+}
+
+function createSpecTemplatesCommand(): Command {
+  return new Command('templates')
+    .description('List available specification templates')
+    .option('--json', 'Output as JSON')
+    .action(async (options) => {
+      try {
+        const specManager = await getSpecManager();
+        const templates = specManager.getTemplates();
+
+        if (options.json) {
+          console.log(JSON.stringify({ status: 'success', data: templates }, null, 2));
+        } else {
+          console.log(chalk.bold('Available Templates:'));
+          templates.forEach((t) => {
+            console.log(`  ${chalk.cyan(t.id)} - ${t.name}`);
+            console.log(chalk.gray(`    ${t.description}`));
+          });
         }
       } catch (error) {
         handleSpecError(error, options);

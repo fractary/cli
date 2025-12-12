@@ -1,7 +1,7 @@
 /**
  * Logs subcommand - Log management
  *
- * Provides capture, write, search, list, archive, cleanup, audit operations via LogManager SDK.
+ * Provides capture, write, search, list, archive operations via LogManager SDK.
  */
 
 import { Command } from 'commander';
@@ -18,11 +18,11 @@ export function createLogsCommand(): Command {
   logs.addCommand(createLogsCaptureCommand());
   logs.addCommand(createLogsStopCommand());
   logs.addCommand(createLogsWriteCommand());
+  logs.addCommand(createLogsReadCommand());
   logs.addCommand(createLogsSearchCommand());
   logs.addCommand(createLogsListCommand());
   logs.addCommand(createLogsArchiveCommand());
-  logs.addCommand(createLogsCleanupCommand());
-  logs.addCommand(createLogsAuditCommand());
+  logs.addCommand(createLogsDeleteCommand());
 
   return logs;
 }
@@ -66,8 +66,8 @@ function createLogsStopCommand(): Command {
           console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
         } else {
           console.log(chalk.green('✓ Stopped session capture'));
-          if (result.path) {
-            console.log(chalk.gray(`  Log saved to: ${result.path}`));
+          if (result?.logPath) {
+            console.log(chalk.gray(`  Log saved to: ${result.logPath}`));
           }
         }
       } catch (error) {
@@ -81,24 +81,62 @@ function createLogsWriteCommand(): Command {
     .description('Write a typed log entry')
     .requiredOption('--type <type>', 'Log type: session|build|deployment|debug|test|audit|operational')
     .requiredOption('--title <title>', 'Log entry title')
+    .requiredOption('--content <text>', 'Log content')
     .option('--issue <number>', 'Associated issue number')
-    .option('--content <text>', 'Log content')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       try {
         const logManager = await getLogManager();
-        const result = await logManager.write({
+        const result = logManager.writeLog({
           type: options.type,
           title: options.title,
-          issueNumber: options.issue ? parseInt(options.issue, 10) : undefined,
           content: options.content,
+          issueNumber: options.issue ? parseInt(options.issue, 10) : undefined,
         });
 
         if (options.json) {
           console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
         } else {
           console.log(chalk.green(`✓ Created ${options.type} log: ${options.title}`));
+          console.log(chalk.gray(`  ID: ${result.id}`));
           console.log(chalk.gray(`  Path: ${result.path}`));
+        }
+      } catch (error) {
+        handleLogsError(error, options);
+      }
+    });
+}
+
+function createLogsReadCommand(): Command {
+  return new Command('read')
+    .description('Read a log entry by ID or path')
+    .argument('<id>', 'Log ID or path')
+    .option('--json', 'Output as JSON')
+    .action(async (id: string, options) => {
+      try {
+        const logManager = await getLogManager();
+        const log = logManager.readLog(id);
+
+        if (!log) {
+          if (options.json) {
+            console.error(JSON.stringify({
+              status: 'error',
+              error: { code: 'LOG_NOT_FOUND', message: `Log not found: ${id}` },
+            }));
+          } else {
+            console.error(chalk.red(`Log not found: ${id}`));
+          }
+          process.exit(5);
+        }
+
+        if (options.json) {
+          console.log(JSON.stringify({ status: 'success', data: log }, null, 2));
+        } else {
+          console.log(chalk.bold(`[${log.type}] ${log.title}`));
+          console.log(chalk.gray(`ID: ${log.id}`));
+          console.log(chalk.gray(`Date: ${log.metadata.date}`));
+          console.log(chalk.gray(`Path: ${log.path}`));
+          console.log('\n' + log.content);
         }
       } catch (error) {
         handleLogsError(error, options);
@@ -112,16 +150,16 @@ function createLogsSearchCommand(): Command {
     .requiredOption('--query <text>', 'Search query')
     .option('--type <type>', 'Filter by log type')
     .option('--issue <number>', 'Filter by issue number')
-    .option('--limit <n>', 'Max results', '20')
+    .option('--regex', 'Use regex search')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       try {
         const logManager = await getLogManager();
-        const results = await logManager.search({
+        const results = logManager.searchLogs({
           query: options.query,
           type: options.type,
           issueNumber: options.issue ? parseInt(options.issue, 10) : undefined,
-          limit: parseInt(options.limit, 10),
+          regex: options.regex,
         });
 
         if (options.json) {
@@ -130,11 +168,13 @@ function createLogsSearchCommand(): Command {
           if (results.length === 0) {
             console.log(chalk.yellow('No logs found'));
           } else {
-            results.forEach((log: any) => {
-              console.log(chalk.bold(`[${log.type}] ${log.title}`));
-              console.log(chalk.gray(`  ${log.path}`));
-              if (log.snippet) {
-                console.log(chalk.gray(`  ...${log.snippet}...`));
+            results.forEach((result) => {
+              console.log(chalk.bold(`[${result.log.type}] ${result.log.title}`));
+              console.log(chalk.gray(`  ${result.log.path}`));
+              if (result.snippets && result.snippets.length > 0) {
+                result.snippets.forEach((snippet) => {
+                  console.log(chalk.gray(`  ...${snippet}...`));
+                });
               }
               console.log('');
             });
@@ -157,7 +197,7 @@ function createLogsListCommand(): Command {
     .action(async (options) => {
       try {
         const logManager = await getLogManager();
-        const logs = await logManager.list({
+        const logs = logManager.listLogs({
           type: options.type,
           status: options.status,
           issueNumber: options.issue ? parseInt(options.issue, 10) : undefined,
@@ -170,9 +210,9 @@ function createLogsListCommand(): Command {
           if (logs.length === 0) {
             console.log(chalk.yellow('No logs found'));
           } else {
-            logs.forEach((log: any) => {
+            logs.forEach((log) => {
               const typeColor = getTypeColor(log.type);
-              console.log(`${typeColor(`[${log.type}]`)} ${log.title} (${log.date})`);
+              console.log(`${typeColor(`[${log.type}]`)} ${log.title} (${log.metadata.date})`);
             });
           }
         }
@@ -184,30 +224,42 @@ function createLogsListCommand(): Command {
 
 function createLogsArchiveCommand(): Command {
   return new Command('archive')
-    .description('Archive logs')
-    .option('--type <type>', 'Archive by log type')
-    .option('--issue <number>', 'Archive by issue number')
-    .option('--dry-run', 'Show what would be archived')
+    .description('Archive old logs')
+    .option('--max-age <days>', 'Archive logs older than N days', '30')
+    .option('--compress', 'Compress archived logs')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       try {
         const logManager = await getLogManager();
-        const result = await logManager.archive({
-          type: options.type,
-          issueNumber: options.issue ? parseInt(options.issue, 10) : undefined,
-          dryRun: options.dryRun,
+        const result = logManager.archiveLogs({
+          maxAgeDays: parseInt(options.maxAge, 10),
+          compress: options.compress,
         });
 
         if (options.json) {
           console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
         } else {
-          const prefix = options.dryRun ? 'Would archive' : 'Archived';
-          if (result.archived.length === 0) {
+          if (result.archived.length === 0 && result.deleted.length === 0) {
             console.log(chalk.yellow('No logs to archive'));
           } else {
-            result.archived.forEach((log: string) => {
-              console.log(chalk.green(`✓ ${prefix}: ${log}`));
-            });
+            if (result.archived.length > 0) {
+              console.log(chalk.green(`✓ Archived ${result.archived.length} log(s)`));
+              result.archived.forEach((log) => {
+                console.log(chalk.gray(`  - ${log}`));
+              });
+            }
+            if (result.deleted.length > 0) {
+              console.log(chalk.green(`✓ Deleted ${result.deleted.length} log(s)`));
+              result.deleted.forEach((log) => {
+                console.log(chalk.gray(`  - ${log}`));
+              });
+            }
+            if (result.errors.length > 0) {
+              console.log(chalk.yellow(`\nErrors (${result.errors.length}):`));
+              result.errors.forEach((err) => {
+                console.log(chalk.red(`  - ${err}`));
+              });
+            }
           }
         }
       } catch (error) {
@@ -216,77 +268,23 @@ function createLogsArchiveCommand(): Command {
     });
 }
 
-function createLogsCleanupCommand(): Command {
-  return new Command('cleanup')
-    .description('Clean up old logs')
-    .option('--older-than <days>', 'Delete logs older than N days', '90')
-    .option('--type <type>', 'Clean specific log type only')
-    .option('--dry-run', 'Show what would be cleaned')
+function createLogsDeleteCommand(): Command {
+  return new Command('delete')
+    .description('Delete a log entry')
+    .argument('<id>', 'Log ID or path')
     .option('--json', 'Output as JSON')
-    .action(async (options) => {
+    .action(async (id: string, options) => {
       try {
         const logManager = await getLogManager();
-        const result = await logManager.cleanup({
-          olderThanDays: parseInt(options.olderThan, 10),
-          type: options.type,
-          dryRun: options.dryRun,
-        });
+        const deleted = logManager.deleteLog(id);
 
         if (options.json) {
-          console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
+          console.log(JSON.stringify({ status: 'success', data: { deleted } }, null, 2));
         } else {
-          const prefix = options.dryRun ? 'Would delete' : 'Deleted';
-          if (result.deleted.length === 0) {
-            console.log(chalk.yellow('No logs to clean up'));
+          if (deleted) {
+            console.log(chalk.green(`✓ Deleted log: ${id}`));
           } else {
-            console.log(chalk.green(`✓ ${prefix} ${result.deleted.length} log(s)`));
-            result.deleted.forEach((log: string) => {
-              console.log(chalk.gray(`  - ${log}`));
-            });
-          }
-        }
-      } catch (error) {
-        handleLogsError(error, options);
-      }
-    });
-}
-
-function createLogsAuditCommand(): Command {
-  return new Command('audit')
-    .description('Audit logs for issues')
-    .option('--execute', 'Execute recommended fixes')
-    .option('--verbose', 'Show detailed audit results')
-    .option('--json', 'Output as JSON')
-    .action(async (options) => {
-      try {
-        const logManager = await getLogManager();
-        const result = await logManager.audit({
-          execute: options.execute,
-          verbose: options.verbose,
-        });
-
-        if (options.json) {
-          console.log(JSON.stringify({ status: 'success', data: result }, null, 2));
-        } else {
-          console.log(chalk.bold('Log Audit Results:'));
-          console.log(`  Total logs: ${result.total}`);
-          console.log(`  Issues found: ${result.issues.length}`);
-
-          if (result.issues.length > 0) {
-            console.log(chalk.yellow('\nIssues:'));
-            result.issues.forEach((issue: any) => {
-              console.log(`  - ${issue.type}: ${issue.description}`);
-              if (issue.path) {
-                console.log(chalk.gray(`    Path: ${issue.path}`));
-              }
-            });
-          }
-
-          if (options.execute && result.fixed.length > 0) {
-            console.log(chalk.green('\nFixes applied:'));
-            result.fixed.forEach((fix: string) => {
-              console.log(`  ✓ ${fix}`);
-            });
+            console.log(chalk.yellow(`Log not found: ${id}`));
           }
         }
       } catch (error) {

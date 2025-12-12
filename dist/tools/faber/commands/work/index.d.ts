@@ -1,7 +1,7 @@
 /**
  * Work subcommand - Work tracking operations
  *
- * Provides issue, comment, label, and milestone operations via WorkManager SDK.
+ * Provides issue, comment, label, and milestone operations via @fractary/faber WorkManager.
  */
 import { Command } from 'commander';
 /**

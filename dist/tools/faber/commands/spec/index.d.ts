@@ -1,7 +1,7 @@
 /**
  * Spec subcommand - Specification management
  *
- * Provides spec create, refine, validate, archive, read, list, update operations via SpecManager SDK.
+ * Provides spec operations via @fractary/faber SpecManager.
  */
 import { Command } from 'commander';
 /**

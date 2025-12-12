@@ -1,7 +1,7 @@
 /**
  * Workflow commands - FABER workflow execution
  *
- * Provides run, status, plan commands via FaberWorkflow SDK.
+ * Provides run, status, resume, pause commands via FaberWorkflow SDK.
  */
 import { Command } from 'commander';
 /**
@@ -13,7 +13,19 @@ export declare function createRunCommand(): Command;
  */
 export declare function createStatusCommand(): Command;
 /**
- * Create the plan command
+ * Create the resume command
  */
-export declare function createPlanCommand(): Command;
+export declare function createResumeCommand(): Command;
+/**
+ * Create the pause command
+ */
+export declare function createPauseCommand(): Command;
+/**
+ * Create the recover command
+ */
+export declare function createRecoverCommand(): Command;
+/**
+ * Create the cleanup command
+ */
+export declare function createCleanupCommand(): Command;
 //# sourceMappingURL=index.d.ts.map
