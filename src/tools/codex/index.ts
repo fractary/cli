@@ -16,6 +16,7 @@ import { cacheCommand } from './commands/cache';
 import { syncCommand } from './commands/sync';
 import { typesCommand } from './commands/types';
 import { healthCommand } from './commands/health';
+import { migrateCommand } from './commands/migrate';
 
 /**
  * Create and configure the codex command
@@ -34,6 +35,7 @@ export function createCodexCommand(): Command {
   codex.addCommand(syncCommand());      // Bidirectional sync (project, org)
   codex.addCommand(typesCommand());     // Type registry (list, show, add, remove)
   codex.addCommand(healthCommand());    // Diagnostics and auto-repair
+  codex.addCommand(migrateCommand());   // v2.0 to v3.0 migration
 
   return codex;
 }
