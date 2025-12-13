@@ -1,0 +1,11 @@
+{
+  "version": "2.1.0",
+  "platform": "github",
+  "github_config": {
+    "owner": "fractary",
+    "repo": "cli",
+    "api_url": "https://api.github.com"
+  },
+  "initialized_at": "2025-12-12T00:00:00Z",
+  "initialized_by": "work-manager"
+}

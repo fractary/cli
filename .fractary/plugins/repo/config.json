@@ -1,0 +1,20 @@
+{
+  "version": "2.2.1",
+  "platform": "github",
+  "scope": "project",
+  "repository": {
+    "default_branch": "main",
+    "protected_branches": ["main"],
+    "merge_strategy": "no-ff"
+  },
+  "sync": {
+    "push_sync_strategy": "auto-merge",
+    "pull_sync_strategy": "auto-merge-prefer-remote",
+    "auto_update_branch_cache": true
+  },
+  "auth": {
+    "method": "gh-cli"
+  },
+  "created_at": "2025-12-12T22:40:48Z",
+  "created_by": "config-wizard"
+}
