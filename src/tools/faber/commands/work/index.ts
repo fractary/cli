@@ -6,6 +6,8 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { promises as fs } from 'fs';
+import path from 'path';
 import { getWorkManager, SDKNotAvailableError } from '../../../../sdk';
 
 /**
@@ -23,6 +25,9 @@ export function createWorkCommand(): Command {
   issue.addCommand(createIssueCreateCommand());
   issue.addCommand(createIssueUpdateCommand());
   issue.addCommand(createIssueCloseCommand());
+  issue.addCommand(createIssueReopenCommand());
+  issue.addCommand(createIssueAssignCommand());
+  issue.addCommand(createIssueClassifyCommand());
   issue.addCommand(createIssueSearchCommand());
 
   // Comment operations
@@ -52,6 +57,7 @@ export function createWorkCommand(): Command {
   work.addCommand(comment);
   work.addCommand(label);
   work.addCommand(milestone);
+  work.addCommand(createInitCommand());
 
   return work;
 }
@@ -202,6 +208,245 @@ function createIssueSearchCommand(): Command {
         handleWorkError(error, options);
       }
     });
+}
+
+function createIssueReopenCommand(): Command {
+  return new Command('reopen')
+    .description('Reopen a closed work item')
+    .argument('<number>', 'Issue number')
+    .option('--comment <text>', 'Add comment when reopening')
+    .option('--json', 'Output as JSON')
+    .action(async (number: string, options) => {
+      try {
+        const workManager = await getWorkManager();
+
+        // Add comment if provided
+        if (options.comment) {
+          await workManager.createComment(parseInt(number, 10), options.comment);
+        }
+
+        // Reopen using SDK method
+        const issue = await workManager.reopenIssue(parseInt(number, 10));
+
+        if (options.json) {
+          console.log(JSON.stringify({
+            status: 'success',
+            data: {
+              number: issue.number,
+              state: issue.state,
+              url: issue.url,
+            },
+          }, null, 2));
+        } else {
+          console.log(chalk.green(`✓ Reopened issue #${number}`));
+        }
+      } catch (error) {
+        handleWorkError(error, options);
+      }
+    });
+}
+
+function createIssueAssignCommand(): Command {
+  return new Command('assign')
+    .description('Assign or unassign a work item')
+    .argument('<number>', 'Issue number')
+    .option('--user <username>', 'User to assign (use @me for self, omit to unassign)')
+    .option('--json', 'Output as JSON')
+    .action(async (number: string, options) => {
+      try {
+        const workManager = await getWorkManager();
+        let issue;
+
+        if (options.user) {
+          // Assign using SDK method
+          issue = await workManager.assignIssue(parseInt(number, 10), options.user);
+        } else {
+          // Unassign using SDK method
+          issue = await workManager.unassignIssue(parseInt(number, 10));
+        }
+
+        if (options.json) {
+          console.log(JSON.stringify({
+            status: 'success',
+            data: {
+              number: issue.number,
+              assignees: issue.assignees || [],
+              url: issue.url,
+            },
+          }, null, 2));
+        } else {
+          if (options.user) {
+            console.log(chalk.green(`✓ Assigned issue #${number} to ${options.user}`));
+          } else {
+            console.log(chalk.green(`✓ Unassigned issue #${number}`));
+          }
+        }
+      } catch (error) {
+        handleWorkError(error, options);
+      }
+    });
+}
+
+function createIssueClassifyCommand(): Command {
+  return new Command('classify')
+    .description('Classify work item type (feature, bug, chore, patch)')
+    .argument('<number>', 'Issue number')
+    .option('--json', 'Output as JSON')
+    .action(async (number: string, options) => {
+      try {
+        const workManager = await getWorkManager();
+        const issue = await workManager.fetchIssue(parseInt(number, 10));
+
+        // Classify based on labels, title keywords, and other signals
+        const result = classifyWorkType(issue);
+
+        if (options.json) {
+          console.log(JSON.stringify({
+            status: 'success',
+            data: {
+              number: parseInt(number, 10),
+              work_type: result.work_type,
+              confidence: result.confidence,
+              signals: result.signals,
+            },
+          }, null, 2));
+        } else {
+          // Always return best guess - never return "unknown"
+          console.log(result.work_type);
+
+          // Show confidence warnings at different thresholds
+          if (result.confidence < 0.5) {
+            console.log(chalk.red(`⚠ LOW CONFIDENCE: ${Math.round(result.confidence * 100)}% - review manually`));
+          } else if (result.confidence < 0.8) {
+            console.log(chalk.yellow(`(confidence: ${Math.round(result.confidence * 100)}%)`));
+          }
+        }
+      } catch (error) {
+        handleWorkError(error, options);
+      }
+    });
+}
+
+/**
+ * Classify work type based on issue signals
+ */
+interface ClassifyResult {
+  work_type: 'feature' | 'bug' | 'chore' | 'patch';
+  confidence: number;
+  signals: {
+    labels: string[];
+    title_keywords: string[];
+    has_bug_markers: boolean;
+  };
+}
+
+interface IssueForClassification {
+  title?: string;
+  labels?: Array<{ name: string } | string>;
+  body?: string;
+}
+
+function classifyWorkType(issue: IssueForClassification): ClassifyResult {
+  const title = (issue.title || '').toLowerCase();
+  const labels = (issue.labels || []).map((l) =>
+    typeof l === 'string' ? l.toLowerCase() : l.name.toLowerCase()
+  );
+
+  const signals = {
+    labels: labels,
+    title_keywords: [] as string[],
+    has_bug_markers: false,
+  };
+
+  // Label-based classification (highest priority)
+  const labelScores: Record<string, { type: ClassifyResult['work_type']; score: number }> = {
+    'bug': { type: 'bug', score: 0.95 },
+    'defect': { type: 'bug', score: 0.95 },
+    'regression': { type: 'bug', score: 0.9 },
+    'enhancement': { type: 'feature', score: 0.9 },
+    'feature': { type: 'feature', score: 0.95 },
+    'new feature': { type: 'feature', score: 0.95 },
+    'chore': { type: 'chore', score: 0.9 },
+    'maintenance': { type: 'chore', score: 0.85 },
+    'dependencies': { type: 'chore', score: 0.8 },
+    'hotfix': { type: 'patch', score: 0.95 },
+    'urgent': { type: 'patch', score: 0.7 },
+    'security': { type: 'patch', score: 0.85 },
+    'critical': { type: 'patch', score: 0.8 },
+  };
+
+  // Check labels first
+  for (const label of labels) {
+    if (labelScores[label]) {
+      return {
+        work_type: labelScores[label].type,
+        confidence: labelScores[label].score,
+        signals,
+      };
+    }
+  }
+
+  // Title keyword analysis
+  const bugKeywords = ['fix', 'bug', 'error', 'crash', 'broken', 'issue', 'problem'];
+  const featureKeywords = ['add', 'implement', 'new', 'create', 'feature', 'support'];
+  const choreKeywords = ['update', 'upgrade', 'refactor', 'clean', 'remove', 'deprecate', 'migrate'];
+  const patchKeywords = ['hotfix', 'urgent', 'critical', 'security'];
+
+  let workType: ClassifyResult['work_type'] = 'feature';
+  let confidence = 0.5;
+
+  // Check for bug markers
+  for (const keyword of bugKeywords) {
+    if (title.includes(keyword)) {
+      signals.title_keywords.push(keyword);
+      signals.has_bug_markers = true;
+      workType = 'bug';
+      confidence = 0.7;
+      break;
+    }
+  }
+
+  // Check for patch markers (higher priority than bug)
+  for (const keyword of patchKeywords) {
+    if (title.includes(keyword)) {
+      signals.title_keywords.push(keyword);
+      workType = 'patch';
+      confidence = 0.75;
+      break;
+    }
+  }
+
+  // Check for feature markers
+  if (workType !== 'patch') {
+    for (const keyword of featureKeywords) {
+      if (title.includes(keyword)) {
+        signals.title_keywords.push(keyword);
+        if (!signals.has_bug_markers) {
+          workType = 'feature';
+          confidence = 0.7;
+        }
+        break;
+      }
+    }
+  }
+
+  // Check for chore markers
+  for (const keyword of choreKeywords) {
+    if (title.includes(keyword)) {
+      signals.title_keywords.push(keyword);
+      if (!signals.has_bug_markers && workType !== 'patch') {
+        workType = 'chore';
+        confidence = 0.65;
+      }
+      break;
+    }
+  }
+
+  return {
+    work_type: workType,
+    confidence,
+    signals,
+  };
 }
 
 // Comment Commands
@@ -413,6 +658,185 @@ function createMilestoneSetCommand(): Command {
         handleWorkError(error, options);
       }
     });
+}
+
+// Init Command (standalone - no WorkManager dependency)
+
+interface WorkConfig {
+  work: {
+    platform: string;
+    repository?: {
+      owner: string;
+      name: string;
+    };
+    instance?: string;
+    project?: string;
+  };
+}
+
+function createInitCommand(): Command {
+  return new Command('init')
+    .description('Initialize work tracking configuration')
+    .option('--platform <name>', 'Platform: github, jira, linear (auto-detect if not specified)')
+    .option('--token <value>', 'API token (or use env var)')
+    .option('--project <key>', 'Project key for Jira/Linear')
+    .option('--yes', 'Accept defaults without prompting')
+    .option('--json', 'Output as JSON')
+    .action(async (options) => {
+      try {
+        // Standalone initialization - no WorkManager dependency
+        const platform = options.platform || await detectPlatformFromGit();
+        const config = await buildWorkConfig(platform, options);
+        const configPath = await writeWorkConfig(config);
+
+        if (options.json) {
+          console.log(JSON.stringify({
+            status: 'success',
+            data: {
+              platform: config.work.platform,
+              config_path: configPath,
+              repository: config.work.repository
+                ? `${config.work.repository.owner}/${config.work.repository.name}`
+                : config.work.project,
+            },
+          }, null, 2));
+        } else {
+          console.log(chalk.green(`✓ Work tracking initialized`));
+          console.log(chalk.gray(`Platform: ${config.work.platform}`));
+          console.log(chalk.gray(`Config: ${configPath}`));
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (options.json) {
+          console.error(JSON.stringify({
+            status: 'error',
+            error: { code: 'INIT_ERROR', message },
+          }));
+        } else {
+          console.error(chalk.red('Error:'), message);
+        }
+        process.exit(1);
+      }
+    });
+}
+
+/**
+ * Detect platform from git remote URL
+ */
+async function detectPlatformFromGit(): Promise<string> {
+  try {
+    const gitConfigPath = path.join(process.cwd(), '.git', 'config');
+    const gitConfig = await fs.readFile(gitConfigPath, 'utf-8');
+
+    // Parse remote URL from git config
+    const remoteMatch = gitConfig.match(/\[remote "origin"\][\s\S]*?url\s*=\s*(.+)/);
+    if (!remoteMatch) {
+      throw new Error('No origin remote found');
+    }
+
+    const remoteUrl = remoteMatch[1].trim();
+
+    // Detect platform from hostname
+    if (remoteUrl.includes('github.com')) {
+      return 'github';
+    } else if (remoteUrl.includes('gitlab.com')) {
+      return 'gitlab';
+    } else if (remoteUrl.includes('bitbucket.org')) {
+      return 'bitbucket';
+    } else if (remoteUrl.includes('atlassian.net')) {
+      return 'jira';
+    }
+
+    // Default to github
+    return 'github';
+  } catch {
+    // Default to github if detection fails
+    return 'github';
+  }
+}
+
+/**
+ * Parse git remote URL to extract owner and repo
+ */
+function parseGitRemote(url: string): { owner: string; name: string } | null {
+  // SSH format: git@github.com:owner/repo.git
+  const sshMatch = url.match(/@[^:]+:([^/]+)\/([^.]+)/);
+  if (sshMatch) {
+    return { owner: sshMatch[1], name: sshMatch[2] };
+  }
+
+  // HTTPS format: https://github.com/owner/repo.git
+  const httpsMatch = url.match(/https?:\/\/[^/]+\/([^/]+)\/([^/.]+)/);
+  if (httpsMatch) {
+    return { owner: httpsMatch[1], name: httpsMatch[2] };
+  }
+
+  return null;
+}
+
+/**
+ * Build work configuration
+ */
+async function buildWorkConfig(platform: string, options: { project?: string }): Promise<WorkConfig> {
+  const config: WorkConfig = {
+    work: {
+      platform,
+    },
+  };
+
+  if (platform === 'github' || platform === 'gitlab' || platform === 'bitbucket') {
+    // Try to get repository info from git remote
+    try {
+      const gitConfigPath = path.join(process.cwd(), '.git', 'config');
+      const gitConfig = await fs.readFile(gitConfigPath, 'utf-8');
+      const remoteMatch = gitConfig.match(/\[remote "origin"\][\s\S]*?url\s*=\s*(.+)/);
+      if (remoteMatch) {
+        const repoInfo = parseGitRemote(remoteMatch[1].trim());
+        if (repoInfo) {
+          config.work.repository = repoInfo;
+        }
+      }
+    } catch {
+      // Ignore errors, repository info is optional
+    }
+  } else if (platform === 'jira' || platform === 'linear') {
+    if (options.project) {
+      config.work.project = options.project;
+    }
+  }
+
+  return config;
+}
+
+/**
+ * Write work configuration to file
+ */
+async function writeWorkConfig(config: WorkConfig): Promise<string> {
+  const configDir = path.join(process.cwd(), '.fractary', 'faber');
+  const configPath = path.join(configDir, 'config.json');
+
+  // Ensure directory exists
+  await fs.mkdir(configDir, { recursive: true });
+
+  // Read existing config if present
+  let existingConfig: Record<string, unknown> = {};
+  try {
+    const existing = await fs.readFile(configPath, 'utf-8');
+    existingConfig = JSON.parse(existing);
+  } catch {
+    // No existing config, that's fine
+  }
+
+  // Merge with existing config
+  const mergedConfig = {
+    ...existingConfig,
+    ...config,
+  };
+
+  // Write config
+  await fs.writeFile(configPath, JSON.stringify(mergedConfig, null, 2) + '\n');
+
+  return configPath;
 }
 
 // Error handling

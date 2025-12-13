@@ -1,19 +1,24 @@
 "use strict";
 /**
- * Codex tool - Centralized knowledge management and distribution
+ * Codex tool - Centralized knowledge management and distribution (v3.0)
  *
- * Exports the codex command for the unified Fractary CLI
+ * Pull-based document retrieval with codex:// URI scheme and intelligent caching.
+ * Exports the codex command for the unified Fractary CLI.
+ *
+ * @see SPEC-00024 - Codex SDK v3.0 Architecture
+ * @see SPEC-00025 - Codex MCP Server Integration
+ * @see SPEC-00026 - CLI Alignment with SDK v3.0
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createCodexCommand = createCodexCommand;
 const commander_1 = require("commander");
 const init_1 = require("./commands/init");
-const validate_1 = require("./commands/validate");
-const parse_1 = require("./commands/parse");
-const config_1 = require("./commands/config");
-const route_1 = require("./commands/route");
-const list_1 = require("./commands/list");
-const check_1 = require("./commands/check");
+const fetch_1 = require("./commands/fetch");
+const cache_1 = require("./commands/cache");
+const sync_1 = require("./commands/sync");
+const types_1 = require("./commands/types");
+const health_1 = require("./commands/health");
+const migrate_1 = require("./commands/migrate");
 /**
  * Create and configure the codex command
  */
@@ -21,15 +26,15 @@ function createCodexCommand() {
     const codex = new commander_1.Command('codex');
     codex
         .description('Centralized knowledge management and distribution')
-        .version('0.1.0');
-    // Register commands
-    codex.addCommand((0, init_1.initCommand)());
-    codex.addCommand((0, validate_1.validateCommand)());
-    codex.addCommand((0, parse_1.parseCommand)());
-    codex.addCommand((0, config_1.configCommand)());
-    codex.addCommand((0, route_1.routeCommand)());
-    codex.addCommand((0, list_1.listCommand)());
-    codex.addCommand((0, check_1.checkCommand)());
+        .version('3.0.0');
+    // Core commands (v3.0)
+    codex.addCommand((0, init_1.initCommand)()); // Initialize codex configuration
+    codex.addCommand((0, fetch_1.fetchCommand)()); // Fetch documents by codex:// URI
+    codex.addCommand((0, cache_1.cacheCommand)()); // Cache management (list, clear, stats)
+    codex.addCommand((0, sync_1.syncCommand)()); // Bidirectional sync (project, org)
+    codex.addCommand((0, types_1.typesCommand)()); // Type registry (list, show, add, remove)
+    codex.addCommand((0, health_1.healthCommand)()); // Diagnostics and auto-repair
+    codex.addCommand((0, migrate_1.migrateCommand)()); // v2.0 to v3.0 migration
     return codex;
 }
 //# sourceMappingURL=index.js.map
