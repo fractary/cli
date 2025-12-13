@@ -73,43 +73,93 @@ deployments/              # Generated artifacts
 
 ### Codex (Knowledge Management)
 
-Codex enables centralized documentation and knowledge distribution across your organization.
+Codex enables centralized documentation and knowledge distribution across your organization using the `codex://` URI scheme for universal document addressing.
 
 **Initialize a Codex project:**
 ```bash
 fractary codex init --org fractary
 ```
 
-**Validate and analyze documentation:**
+**Fetch documents by URI:**
 ```bash
-# Validate frontmatter metadata
-fractary codex validate docs/
+# Fetch a document (with intelligent caching)
+fractary codex fetch codex://fractary/codex/docs/api.md
 
-# Parse metadata from a file
-fractary codex parse docs/api-guide.md
+# Bypass cache and fetch fresh
+fractary codex fetch codex://fractary/codex/specs/SPEC-0001.md --bypass-cache
 
-# See where a file will sync
-fractary codex route docs/api-guide.md
+# Output as JSON with metadata
+fractary codex fetch codex://fractary/codex/docs/guide.md --json
 ```
 
-**Manage configuration:**
+**Manage cache:**
 ```bash
-# View configuration
-fractary codex config show
+# List cached documents
+fractary codex cache list
 
-# List all documented files
-fractary codex list
+# View cache statistics
+fractary codex cache stats
 
-# Check sync status
-fractary codex check
+# Clear expired entries
+fractary codex cache clear --expired
+
+# Clear all cache
+fractary codex cache clear --all
+```
+
+**Sync with codex repository:**
+```bash
+# Sync current project
+fractary codex sync project --dry-run
+
+# Sync all projects in organization
+fractary codex sync org --env prod
+
+# Bidirectional sync
+fractary codex sync project --direction bidirectional
+```
+
+**Manage artifact types:**
+```bash
+# List all types (built-in and custom)
+fractary codex types list
+
+# Show type details
+fractary codex types show docs
+
+# Add custom type
+fractary codex types add schemas --pattern "schemas/**/*.json" --ttl 7d
+
+# Remove custom type
+fractary codex types remove schemas
+```
+
+**Health diagnostics:**
+```bash
+# Run health check
+fractary codex health
+
+# Auto-fix detected issues
+fractary codex health --fix
+```
+
+**Migrate from v2.0:**
+```bash
+# Preview migration
+fractary codex migrate --dry-run
+
+# Execute migration
+fractary codex migrate
 ```
 
 **Project structure created:**
 ```
 .fractary/
-  codex.config.json       # Codex configuration
-  systems/                # System-specific content
-docs/                     # Documentation with frontmatter
+  plugins/
+    codex/
+      config.json         # v3.0 configuration
+      cache/              # Document cache
+        index.json        # Cache index
 ```
 
 ### Forge (Asset Management & Scaffolding)
@@ -298,10 +348,13 @@ Common functionality shared across all tools reduces duplication.
 - CLI commands (init, create, list, validate, build)
 
 ### ✅ Complete (Codex)
-- CLI commands (init, validate, parse, config, route, list, check)
-- SDK integration (@fractary/codex)
-- Metadata parsing and validation
-- Routing analysis
+- CLI v3.0 commands (init, fetch, cache, sync, types, health, migrate)
+- Pull-based retrieval with `codex://` URI scheme
+- Intelligent caching with TTL-based expiration
+- Bidirectional sync (project and org-level)
+- Artifact type registry (built-in and custom types)
+- Health diagnostics with auto-repair
+- v2.0 to v3.0 migration support
 
 ### ✅ Complete (Forge)
 - CLI commands (create, install, update, deploy, diff, validate, list, status, remove, config, search)
@@ -315,11 +368,6 @@ Common functionality shared across all tools reduces duplication.
 - LangGraph and CrewAI bindings
 - MCP server integration
 - Deploy command
-
-### 🚧 In Progress (Codex)
-- GitHub Actions integration
-- Sync commands
-- Watch mode
 
 ### 📋 Planned
 - Helm tool integration
