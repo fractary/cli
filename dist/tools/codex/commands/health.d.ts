@@ -1,12 +1,13 @@
 /**
  * Health command (v3.0)
  *
- * Comprehensive diagnostics for codex setup:
- * - Configuration validation
- * - Cache integrity
- * - Storage connectivity
- * - MCP server status
- * - Migration requirements
+ * Comprehensive diagnostics for codex SDK setup:
+ * - YAML configuration validation
+ * - CodexClient initialization
+ * - Cache health via CacheManager
+ * - Storage provider connectivity
+ * - Type registry validation
+ * - Legacy configuration detection
  */
 import { Command } from 'commander';
 export declare function healthCommand(): Command;
