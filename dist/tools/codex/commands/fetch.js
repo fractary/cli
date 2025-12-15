@@ -2,10 +2,11 @@
 /**
  * Fetch document command (v3.0)
  *
- * Retrieves documents by codex:// URI reference with:
+ * Retrieves documents by codex:// URI reference using SDK's CodexClient:
  * - Cache-first retrieval for fast access
  * - TTL-based cache invalidation
  * - Multiple storage provider support
+ * - Automatic URI validation and resolution
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -47,144 +48,15 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.fetchCommand = fetchCommand;
 const commander_1 = require("commander");
 const chalk_1 = __importDefault(require("chalk"));
-const path = __importStar(require("path"));
 const fs = __importStar(require("fs/promises"));
-const file_scanner_1 = require("../utils/file-scanner");
-// Try to import SDK functions
-let parseReference;
-let CacheManager;
-let createCacheManager;
-try {
-    const codex = require('@fractary/codex');
-    parseReference = codex.parseReference;
-    CacheManager = codex.CacheManager;
-    createCacheManager = codex.createCacheManager;
-}
-catch {
-    // SDK functions not available, will use fallbacks
-}
-/**
- * Parse a codex:// URI manually (fallback)
- */
-function parseCodexUri(uri) {
-    // Format: codex://org/project/path/to/file.md
-    const match = uri.match(/^codex:\/\/([^/]+)\/([^/]+)\/(.+)$/);
-    if (!match)
-        return null;
-    return {
-        org: match[1],
-        project: match[2],
-        path: match[3]
-    };
-}
-/**
- * Get cache directory path
- */
-function getCacheDir() {
-    return path.join(process.cwd(), '.fractary', 'plugins', 'codex', 'cache');
-}
-/**
- * Get cache file path for a URI
- */
-function getCachePath(uri) {
-    const hash = Buffer.from(uri).toString('base64').replace(/[/+=]/g, '_');
-    return path.join(getCacheDir(), `${hash}.json`);
-}
+const get_client_1 = require("../get-client");
+const codex_1 = require("@fractary/codex");
 /**
  * Calculate content hash
  */
 function hashContent(content) {
     const crypto = require('crypto');
     return crypto.createHash('sha256').update(content).digest('hex').slice(0, 16);
-}
-/**
- * Check if cache entry is valid (not expired)
- */
-function isCacheValid(entry, ttlOverride) {
-    const now = new Date();
-    const expiresAt = new Date(entry.expiresAt);
-    if (ttlOverride !== undefined) {
-        const fetchedAt = new Date(entry.fetchedAt);
-        const overrideExpiry = new Date(fetchedAt.getTime() + ttlOverride * 1000);
-        return now < overrideExpiry;
-    }
-    return now < expiresAt;
-}
-/**
- * Read from cache
- */
-async function readCache(uri) {
-    const cachePath = getCachePath(uri);
-    try {
-        if (await (0, file_scanner_1.fileExists)(cachePath)) {
-            const content = await (0, file_scanner_1.readFileContent)(cachePath);
-            return JSON.parse(content);
-        }
-    }
-    catch {
-        // Cache read failed, will fetch fresh
-    }
-    return null;
-}
-/**
- * Write to cache
- */
-async function writeCache(uri, content, ttl = 86400) {
-    const cachePath = getCachePath(uri);
-    const now = new Date();
-    const entry = {
-        uri,
-        content,
-        fetchedAt: now.toISOString(),
-        expiresAt: new Date(now.getTime() + ttl * 1000).toISOString(),
-        source: 'github',
-        contentHash: hashContent(content)
-    };
-    await (0, file_scanner_1.writeFileContent)(cachePath, JSON.stringify(entry, null, 2));
-    // Update cache index
-    await updateCacheIndex(uri, entry);
-}
-/**
- * Update cache index
- */
-async function updateCacheIndex(uri, entry) {
-    const indexPath = path.join(getCacheDir(), 'index.json');
-    try {
-        let index = { entries: {} };
-        if (await (0, file_scanner_1.fileExists)(indexPath)) {
-            const content = await (0, file_scanner_1.readFileContent)(indexPath);
-            index = JSON.parse(content);
-        }
-        index.entries[uri] = {
-            fetchedAt: entry.fetchedAt,
-            expiresAt: entry.expiresAt,
-            contentHash: entry.contentHash,
-            size: entry.content.length
-        };
-        await (0, file_scanner_1.writeFileContent)(indexPath, JSON.stringify(index, null, 2));
-    }
-    catch {
-        // Index update failed, non-critical
-    }
-}
-/**
- * Fetch from GitHub (storage provider)
- */
-async function fetchFromGitHub(ref) {
-    const { execSync } = require('child_process');
-    // Build GitHub raw URL
-    const url = `https://raw.githubusercontent.com/${ref.org}/${ref.project}/main/${ref.path}`;
-    try {
-        // Use curl to fetch
-        const content = execSync(`curl -sL "${url}"`, { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
-        if (content.includes('404: Not Found')) {
-            throw new Error(`Document not found: ${ref.path}`);
-        }
-        return content;
-    }
-    catch (error) {
-        throw new Error(`Failed to fetch from GitHub: ${error.message}`);
-    }
 }
 function fetchCommand() {
     const cmd = new commander_1.Command('fetch');
@@ -198,77 +70,74 @@ function fetchCommand() {
         .action(async (uri, options) => {
         try {
             // Validate URI format
-            if (!uri.startsWith('codex://')) {
+            if (!(0, codex_1.validateUri)(uri)) {
                 console.error(chalk_1.default.red('Error: Invalid URI format'));
                 console.log(chalk_1.default.dim('Expected: codex://org/project/path/to/file.md'));
                 console.log(chalk_1.default.dim('Example: codex://fractary/codex/docs/api.md'));
                 process.exit(1);
             }
-            // Parse URI
-            const parsed = parseReference ? parseReference(uri) : parseCodexUri(uri);
-            if (!parsed) {
-                console.error(chalk_1.default.red('Error: Could not parse URI'));
-                console.log(chalk_1.default.dim(`URI: ${uri}`));
-                process.exit(1);
+            // Get CodexClient instance
+            const client = await (0, get_client_1.getClient)();
+            // Show fetching message (unless JSON output)
+            if (!options.json && !options.bypassCache) {
+                console.error(chalk_1.default.dim(`Fetching ${uri}...`));
             }
-            let content;
-            let fromCache = false;
-            let cacheEntry = null;
-            // Check cache first (unless bypassed)
-            if (!options.bypassCache) {
-                cacheEntry = await readCache(uri);
-                if (cacheEntry && isCacheValid(cacheEntry, options.ttl)) {
-                    content = cacheEntry.content;
-                    fromCache = true;
-                }
-            }
-            // Fetch from source if not in cache
-            if (!fromCache) {
-                if (!options.json) {
-                    console.error(chalk_1.default.dim(`Fetching from ${parsed.org}/${parsed.project}...`));
-                }
-                content = await fetchFromGitHub(parsed);
-                // Update cache
-                const ttl = options.ttl || 86400; // Default 24 hours
-                await writeCache(uri, content, ttl);
-            }
-            // Output
+            // Fetch using CodexClient
+            const result = await client.fetch(uri, {
+                bypassCache: options.bypassCache,
+                ttl: options.ttl
+            });
+            // Output handling
             if (options.json) {
                 const output = {
                     uri,
-                    parsed: {
-                        org: parsed.org,
-                        project: parsed.project,
-                        path: parsed.path
-                    },
-                    content,
+                    content: result.content.toString('utf-8'),
                     metadata: {
-                        fromCache,
-                        fetchedAt: fromCache ? cacheEntry.fetchedAt : new Date().toISOString(),
-                        expiresAt: fromCache ? cacheEntry.expiresAt : new Date(Date.now() + (options.ttl || 86400) * 1000).toISOString(),
-                        contentLength: content.length,
-                        contentHash: hashContent(content)
+                        fromCache: result.fromCache,
+                        fetchedAt: result.metadata?.fetchedAt,
+                        expiresAt: result.metadata?.expiresAt,
+                        contentLength: result.metadata?.contentLength || result.content.length,
+                        contentHash: hashContent(result.content)
                     }
                 };
                 console.log(JSON.stringify(output, null, 2));
             }
             else if (options.output) {
-                await fs.writeFile(options.output, content, 'utf-8');
+                // Write to file
+                await fs.writeFile(options.output, result.content);
                 console.log(chalk_1.default.green('✓'), `Written to ${options.output}`);
-                if (fromCache) {
-                    console.log(chalk_1.default.dim('  (from cache)'));
+                console.log(chalk_1.default.dim(`  Size: ${result.content.length} bytes`));
+                if (result.fromCache) {
+                    console.log(chalk_1.default.dim('  Source: cache'));
+                }
+                else {
+                    console.log(chalk_1.default.dim('  Source: storage'));
                 }
             }
             else {
-                // Print content directly
-                if (fromCache && !options.bypassCache) {
-                    console.error(chalk_1.default.dim('(from cache)\n'));
+                // Print to stdout
+                if (result.fromCache && !options.bypassCache) {
+                    console.error(chalk_1.default.green('✓'), chalk_1.default.dim('from cache\n'));
                 }
-                console.log(content);
+                else {
+                    console.error(chalk_1.default.green('✓'), chalk_1.default.dim('fetched\n'));
+                }
+                console.log(result.content.toString('utf-8'));
             }
         }
         catch (error) {
             console.error(chalk_1.default.red('Error:'), error.message);
+            // Provide helpful error messages
+            if (error.message.includes('Failed to load configuration')) {
+                console.log(chalk_1.default.dim('\nRun "fractary codex init" to create a configuration.'));
+            }
+            else if (error.message.includes('GITHUB_TOKEN')) {
+                console.log(chalk_1.default.dim('\nSet your GitHub token: export GITHUB_TOKEN="your_token"'));
+            }
+            else if (error.message.includes('not found') || error.message.includes('404')) {
+                console.log(chalk_1.default.dim('\nThe document may not exist or you may not have access.'));
+                console.log(chalk_1.default.dim('Check the URI and ensure your storage providers are configured correctly.'));
+            }
             process.exit(1);
         }
     });
