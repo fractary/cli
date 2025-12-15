@@ -1,10 +1,11 @@
 /**
- * Initialize Codex project command (v3.0)
+ * Initialize Codex project command (v3.0 YAML)
  *
- * Sets up codex configuration with:
+ * Creates .fractary/codex.yaml configuration with:
  * - Organization detection from git remote
- * - Cache directory initialization
- * - Type registry configuration
+ * - Multi-provider storage configuration
+ * - Cache configuration
+ * - Type registry setup
  * - Optional MCP server registration
  */
 import { Command } from 'commander';

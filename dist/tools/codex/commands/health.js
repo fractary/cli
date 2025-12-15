@@ -2,12 +2,13 @@
 /**
  * Health command (v3.0)
  *
- * Comprehensive diagnostics for codex setup:
- * - Configuration validation
- * - Cache integrity
- * - Storage connectivity
- * - MCP server status
- * - Migration requirements
+ * Comprehensive diagnostics for codex SDK setup:
+ * - YAML configuration validation
+ * - CodexClient initialization
+ * - Cache health via CacheManager
+ * - Storage provider connectivity
+ * - Type registry validation
+ * - Legacy configuration detection
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -51,167 +52,133 @@ const commander_1 = require("commander");
 const chalk_1 = __importDefault(require("chalk"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs/promises"));
-const child_process_1 = require("child_process");
-const file_scanner_1 = require("../utils/file-scanner");
+const get_client_1 = require("../get-client");
+const migrate_config_1 = require("../migrate-config");
 /**
- * Get config directory path
+ * Check if file exists
  */
-function getConfigDir() {
-    return path.join(process.cwd(), '.fractary', 'plugins', 'codex');
-}
-/**
- * Get cache directory path
- */
-function getCacheDir() {
-    return path.join(getConfigDir(), 'cache');
-}
-/**
- * Check configuration
- */
-async function checkConfig() {
-    const configPath = path.join(getConfigDir(), 'config.json');
+async function fileExists(filePath) {
     try {
-        if (!await (0, file_scanner_1.fileExists)(configPath)) {
+        await fs.access(filePath);
+        return true;
+    }
+    catch {
+        return false;
+    }
+}
+/**
+ * Check YAML configuration
+ */
+async function checkConfiguration() {
+    const configPath = path.join(process.cwd(), '.fractary', 'codex.yaml');
+    const legacyConfigPath = path.join(process.cwd(), '.fractary', 'plugins', 'codex', 'config.json');
+    try {
+        // Check for YAML config
+        if (!await fileExists(configPath)) {
+            // Check for legacy config
+            if (await fileExists(legacyConfigPath)) {
+                return {
+                    name: 'Configuration',
+                    status: 'warn',
+                    message: 'Legacy JSON configuration detected',
+                    details: 'Run "fractary codex migrate" to upgrade to YAML format'
+                };
+            }
             return {
                 name: 'Configuration',
                 status: 'fail',
-                message: 'Configuration file not found',
-                details: `Expected: ${configPath}`,
-                fixable: true
+                message: 'No configuration found',
+                details: 'Run "fractary codex init" to create configuration'
             };
         }
-        const content = await (0, file_scanner_1.readFileContent)(configPath);
-        const config = JSON.parse(content);
-        // Check version
-        if (!config.version) {
-            return {
-                name: 'Configuration',
-                status: 'warn',
-                message: 'Missing version in config',
-                details: 'Config should have a version field',
-                fixable: true
-            };
-        }
-        // Check for v2.0 config (needs migration)
-        if (config.version.startsWith('2.') || config.organizationSlug) {
-            return {
-                name: 'Configuration',
-                status: 'warn',
-                message: 'Legacy v2.0 configuration detected',
-                details: 'Run with --fix to migrate to v3.0 format',
-                fixable: true
-            };
-        }
-        // Check organization
+        // Validate YAML config
+        const config = await (0, migrate_config_1.readYamlConfig)(configPath);
         if (!config.organization) {
             return {
                 name: 'Configuration',
                 status: 'warn',
                 message: 'No organization configured',
-                details: 'Run "fractary codex init --org <slug>" to set organization',
-                fixable: false
+                details: 'Organization slug is required'
+            };
+        }
+        // Check storage providers
+        const providerCount = config.storage?.length || 0;
+        if (providerCount === 0) {
+            return {
+                name: 'Configuration',
+                status: 'warn',
+                message: 'No storage providers configured',
+                details: 'At least one storage provider is recommended'
             };
         }
         return {
             name: 'Configuration',
             status: 'pass',
-            message: `Valid v${config.version} configuration`,
-            details: `Organization: ${config.organization}`
+            message: 'Valid YAML configuration',
+            details: `Organization: ${config.organization}, ${providerCount} storage provider(s)`
         };
     }
     catch (error) {
         return {
             name: 'Configuration',
             status: 'fail',
-            message: 'Invalid configuration file',
-            details: error.message,
-            fixable: false
+            message: 'Invalid configuration',
+            details: error.message
         };
     }
 }
 /**
- * Check cache integrity
+ * Check SDK client initialization
+ */
+async function checkSDKClient() {
+    try {
+        const client = await (0, get_client_1.getClient)();
+        const organization = client.getOrganization();
+        return {
+            name: 'SDK Client',
+            status: 'pass',
+            message: 'CodexClient initialized successfully',
+            details: `Organization: ${organization}`
+        };
+    }
+    catch (error) {
+        return {
+            name: 'SDK Client',
+            status: 'fail',
+            message: 'Failed to initialize CodexClient',
+            details: error.message
+        };
+    }
+}
+/**
+ * Check cache health
  */
 async function checkCache() {
-    const cacheDir = getCacheDir();
-    const indexPath = path.join(cacheDir, 'index.json');
     try {
-        // Check cache directory
-        try {
-            await fs.access(cacheDir);
-        }
-        catch {
+        const client = await (0, get_client_1.getClient)();
+        const stats = await client.getCacheStats();
+        if (stats.entryCount === 0) {
             return {
                 name: 'Cache',
                 status: 'warn',
-                message: 'Cache directory not found',
-                details: `Expected: ${cacheDir}`,
-                fixable: true
+                message: 'Cache is empty',
+                details: 'Fetch some documents to populate cache'
             };
         }
-        // Check index file
-        if (!await (0, file_scanner_1.fileExists)(indexPath)) {
+        const healthPercent = stats.entryCount > 0 ? (stats.freshCount / stats.entryCount) * 100 : 100;
+        if (healthPercent < 50) {
             return {
                 name: 'Cache',
                 status: 'warn',
-                message: 'Cache index not found',
-                details: 'Cache will be rebuilt on first fetch',
-                fixable: true
-            };
-        }
-        const content = await (0, file_scanner_1.readFileContent)(indexPath);
-        const index = JSON.parse(content);
-        // Validate index structure
-        if (!index.entries || typeof index.entries !== 'object') {
-            return {
-                name: 'Cache',
-                status: 'fail',
-                message: 'Invalid cache index structure',
-                details: 'Index missing entries object',
-                fixable: true
-            };
-        }
-        // Check for orphaned entries (in index but file missing)
-        let orphanedCount = 0;
-        let totalEntries = Object.keys(index.entries).length;
-        for (const uri of Object.keys(index.entries)) {
-            const hash = Buffer.from(uri).toString('base64').replace(/[/+=]/g, '_');
-            const cachePath = path.join(cacheDir, `${hash}.json`);
-            if (!await (0, file_scanner_1.fileExists)(cachePath)) {
-                orphanedCount++;
-            }
-        }
-        if (orphanedCount > 0) {
-            return {
-                name: 'Cache',
-                status: 'warn',
-                message: `${orphanedCount} orphaned entries in index`,
-                details: `${orphanedCount}/${totalEntries} entries reference missing files`,
-                fixable: true
-            };
-        }
-        // Check expired entries
-        const now = new Date();
-        let expiredCount = 0;
-        for (const entry of Object.values(index.entries)) {
-            if (new Date(entry.expiresAt) < now) {
-                expiredCount++;
-            }
-        }
-        if (expiredCount > totalEntries * 0.5) {
-            return {
-                name: 'Cache',
-                status: 'warn',
-                message: `${expiredCount} expired entries (${Math.round(expiredCount / totalEntries * 100)}%)`,
-                details: 'Run "fractary codex cache clear --expired" to clean up',
-                fixable: true
+                message: `${stats.entryCount} entries (${healthPercent.toFixed(0)}% fresh)`,
+                details: `${stats.expiredCount} expired, ${stats.staleCount} stale`
             };
         }
         return {
             name: 'Cache',
             status: 'pass',
-            message: `${totalEntries} entries (${expiredCount} expired)`,
-            details: expiredCount > 0 ? `${Math.round((totalEntries - expiredCount) / totalEntries * 100)}% cache health` : '100% cache health'
+            message: `${stats.entryCount} entries (${healthPercent.toFixed(0)}% fresh)`,
+            details: `${formatSize(stats.totalSize)} total`
         };
     }
     catch (error) {
@@ -219,62 +186,41 @@ async function checkCache() {
             name: 'Cache',
             status: 'fail',
             message: 'Cache check failed',
-            details: error.message,
-            fixable: false
+            details: error.message
         };
     }
 }
 /**
- * Check storage connectivity
+ * Check storage providers
  */
 async function checkStorage() {
-    const configPath = path.join(getConfigDir(), 'config.json');
+    const configPath = path.join(process.cwd(), '.fractary', 'codex.yaml');
     try {
-        if (!await (0, file_scanner_1.fileExists)(configPath)) {
+        const config = await (0, migrate_config_1.readYamlConfig)(configPath);
+        const providers = config.storage || [];
+        if (providers.length === 0) {
             return {
                 name: 'Storage',
                 status: 'warn',
-                message: 'No configuration to check storage',
-                fixable: false
+                message: 'No storage providers configured',
+                details: 'Configure at least one provider in .fractary/codex.yaml'
             };
         }
-        const content = await (0, file_scanner_1.readFileContent)(configPath);
-        const config = JSON.parse(content);
-        // Check GitHub connectivity
-        if (config.storage?.providers?.github || config.storage?.defaultProvider === 'github') {
-            try {
-                // Check if gh cli is available
-                (0, child_process_1.execSync)('gh auth status', { encoding: 'utf-8', stdio: 'pipe' });
-                return {
-                    name: 'Storage',
-                    status: 'pass',
-                    message: 'GitHub storage accessible',
-                    details: 'GitHub CLI authenticated'
-                };
-            }
-            catch {
-                // Try checking GITHUB_TOKEN
-                if (process.env.GITHUB_TOKEN) {
-                    return {
-                        name: 'Storage',
-                        status: 'pass',
-                        message: 'GitHub storage accessible',
-                        details: 'GITHUB_TOKEN environment variable set'
-                    };
-                }
-                return {
-                    name: 'Storage',
-                    status: 'warn',
-                    message: 'GitHub authentication not detected',
-                    details: 'Run "gh auth login" or set GITHUB_TOKEN',
-                    fixable: false
-                };
-            }
+        const providerTypes = providers.map(p => p.type).join(', ');
+        const hasGitHub = providers.some(p => p.type === 'github');
+        if (hasGitHub && !process.env.GITHUB_TOKEN) {
+            return {
+                name: 'Storage',
+                status: 'warn',
+                message: `${providers.length} provider(s): ${providerTypes}`,
+                details: 'GITHUB_TOKEN not set (required for GitHub provider)'
+            };
         }
         return {
             name: 'Storage',
             status: 'pass',
-            message: 'Storage configuration valid'
+            message: `${providers.length} provider(s): ${providerTypes}`,
+            details: 'All configured providers available'
         };
     }
     catch (error) {
@@ -282,180 +228,109 @@ async function checkStorage() {
             name: 'Storage',
             status: 'fail',
             message: 'Storage check failed',
-            details: error.message,
-            fixable: false
+            details: error.message
         };
     }
 }
 /**
- * Check MCP server status
+ * Check type registry
  */
-async function checkMcp() {
-    const configPath = path.join(getConfigDir(), 'config.json');
+async function checkTypes() {
     try {
-        if (!await (0, file_scanner_1.fileExists)(configPath)) {
-            return {
-                name: 'MCP Server',
-                status: 'warn',
-                message: 'No configuration to check MCP',
-                fixable: false
-            };
-        }
-        const content = await (0, file_scanner_1.readFileContent)(configPath);
-        const config = JSON.parse(content);
-        if (!config.mcp?.enabled) {
-            return {
-                name: 'MCP Server',
-                status: 'pass',
-                message: 'MCP not enabled (optional)',
-                details: 'Run "fractary codex init --mcp" to enable'
-            };
-        }
-        // Check MCP server registration
-        const mcpConfigPath = path.join(process.cwd(), '.claude', 'mcp_servers.json');
-        if (!await (0, file_scanner_1.fileExists)(mcpConfigPath)) {
-            return {
-                name: 'MCP Server',
-                status: 'warn',
-                message: 'MCP enabled but not registered',
-                details: 'MCP server config not found',
-                fixable: true
-            };
-        }
+        const client = await (0, get_client_1.getClient)();
+        const registry = client.getTypeRegistry();
+        const allTypes = registry.list();
+        const builtinCount = allTypes.filter(t => registry.isBuiltIn(t.name)).length;
+        const customCount = allTypes.length - builtinCount;
         return {
-            name: 'MCP Server',
+            name: 'Type Registry',
             status: 'pass',
-            message: 'MCP server configured',
-            details: config.mcp.serverPath || 'Using default server'
+            message: `${allTypes.length} types registered`,
+            details: `${builtinCount} built-in, ${customCount} custom`
         };
     }
     catch (error) {
         return {
-            name: 'MCP Server',
+            name: 'Type Registry',
             status: 'fail',
-            message: 'MCP check failed',
-            details: error.message,
-            fixable: false
+            message: 'Type registry check failed',
+            details: error.message
         };
     }
 }
 /**
- * Fix detected issues
+ * Format file size
  */
-async function fixIssues(checks) {
-    let fixed = 0;
-    for (const check of checks) {
-        if (check.status !== 'pass' && check.fixable) {
-            console.log(chalk_1.default.blue(`Fixing: ${check.name}...`));
-            try {
-                switch (check.name) {
-                    case 'Configuration':
-                        // Create default config or migrate v2.0
-                        const configDir = getConfigDir();
-                        await fs.mkdir(configDir, { recursive: true });
-                        // Config fix would be handled by init command
-                        console.log(chalk_1.default.dim('  Run "fractary codex init" to fix configuration'));
-                        break;
-                    case 'Cache':
-                        // Create cache directory and index
-                        const cacheDir = getCacheDir();
-                        await fs.mkdir(cacheDir, { recursive: true });
-                        const indexPath = path.join(cacheDir, 'index.json');
-                        if (!await (0, file_scanner_1.fileExists)(indexPath)) {
-                            await (0, file_scanner_1.writeFileContent)(indexPath, JSON.stringify({
-                                version: '1.0',
-                                created: new Date().toISOString(),
-                                entries: {}
-                            }, null, 2));
-                            console.log(chalk_1.default.green('  ✓ Created cache index'));
-                            fixed++;
-                        }
-                        // Clean orphaned entries
-                        if (check.message.includes('orphaned')) {
-                            // Would clean orphaned entries from index
-                            console.log(chalk_1.default.dim('  Run "fractary codex cache clear --all" to reset cache'));
-                        }
-                        break;
-                    case 'MCP Server':
-                        console.log(chalk_1.default.dim('  Run "fractary codex init --mcp" to register MCP server'));
-                        break;
-                }
-            }
-            catch (error) {
-                console.log(chalk_1.default.red(`  Failed to fix: ${error.message}`));
-            }
-        }
-    }
-    return fixed;
+function formatSize(bytes) {
+    if (bytes < 1024)
+        return `${bytes} B`;
+    if (bytes < 1024 * 1024)
+        return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 function healthCommand() {
     const cmd = new commander_1.Command('health');
     cmd
-        .description('Run diagnostics and check codex health')
-        .option('--fix', 'Attempt to fix detected issues')
+        .description('Run diagnostics on codex setup')
         .option('--json', 'Output as JSON')
         .action(async (options) => {
         try {
+            // Run all health checks
             const checks = [];
-            if (!options.json) {
-                console.log(chalk_1.default.bold('Codex Health Check\n'));
-            }
-            // Run all checks
-            checks.push(await checkConfig());
+            checks.push(await checkConfiguration());
+            checks.push(await checkSDKClient());
             checks.push(await checkCache());
             checks.push(await checkStorage());
-            checks.push(await checkMcp());
+            checks.push(await checkTypes());
+            // Count results
+            const passed = checks.filter(c => c.status === 'pass').length;
+            const warned = checks.filter(c => c.status === 'warn').length;
+            const failed = checks.filter(c => c.status === 'fail').length;
             if (options.json) {
-                const summary = {
-                    passed: checks.filter(c => c.status === 'pass').length,
-                    warnings: checks.filter(c => c.status === 'warn').length,
-                    failed: checks.filter(c => c.status === 'fail').length,
+                console.log(JSON.stringify({
+                    summary: {
+                        total: checks.length,
+                        passed,
+                        warned,
+                        failed,
+                        healthy: failed === 0
+                    },
                     checks
-                };
-                console.log(JSON.stringify(summary, null, 2));
+                }, null, 2));
                 return;
             }
             // Display results
+            console.log(chalk_1.default.bold('Codex Health Check\n'));
             for (const check of checks) {
-                let icon;
-                let color;
-                switch (check.status) {
-                    case 'pass':
-                        icon = '✓';
-                        color = chalk_1.default.green;
-                        break;
-                    case 'warn':
-                        icon = '⚠';
-                        color = chalk_1.default.yellow;
-                        break;
-                    case 'fail':
-                        icon = '✗';
-                        color = chalk_1.default.red;
-                        break;
-                }
-                console.log(color(`${icon} ${check.name}`));
-                console.log(`  ${check.message}`);
+                const icon = check.status === 'pass' ? chalk_1.default.green('✓') :
+                    check.status === 'warn' ? chalk_1.default.yellow('⚠') :
+                        chalk_1.default.red('✗');
+                const statusColor = check.status === 'pass' ? chalk_1.default.green :
+                    check.status === 'warn' ? chalk_1.default.yellow :
+                        chalk_1.default.red;
+                console.log(`${icon} ${chalk_1.default.bold(check.name)}`);
+                console.log(`  ${statusColor(check.message)}`);
                 if (check.details) {
-                    console.log(chalk_1.default.dim(`  ${check.details}`));
+                    console.log(`  ${chalk_1.default.dim(check.details)}`);
                 }
                 console.log('');
             }
             // Summary
-            const passed = checks.filter(c => c.status === 'pass').length;
-            const warnings = checks.filter(c => c.status === 'warn').length;
-            const failed = checks.filter(c => c.status === 'fail').length;
-            console.log(chalk_1.default.dim('─'.repeat(40)));
-            console.log(`Summary: ${chalk_1.default.green(`${passed} passed`)}`, warnings > 0 ? chalk_1.default.yellow(`${warnings} warnings`) : '', failed > 0 ? chalk_1.default.red(`${failed} failed`) : '');
-            // Fix issues if requested
-            if (options.fix && (warnings > 0 || failed > 0)) {
+            console.log(chalk_1.default.dim('─'.repeat(60)));
+            const overallStatus = failed > 0 ? chalk_1.default.red('UNHEALTHY') :
+                warned > 0 ? chalk_1.default.yellow('DEGRADED') :
+                    chalk_1.default.green('HEALTHY');
+            console.log(`Status: ${overallStatus}`);
+            console.log(chalk_1.default.dim(`${passed} passed, ${warned} warnings, ${failed} failed`));
+            if (failed > 0 || warned > 0) {
                 console.log('');
-                const fixed = await fixIssues(checks);
-                if (fixed > 0) {
-                    console.log(chalk_1.default.green(`\n✓ Fixed ${fixed} issues`));
-                }
+                console.log(chalk_1.default.dim('Run checks individually for more details:'));
+                console.log(chalk_1.default.dim('  fractary codex cache stats'));
+                console.log(chalk_1.default.dim('  fractary codex types list'));
             }
-            else if ((warnings > 0 || failed > 0) && checks.some(c => c.fixable)) {
-                console.log(chalk_1.default.dim('\nRun with --fix to attempt automatic repairs.'));
+            // Exit with error if any checks failed
+            if (failed > 0) {
+                process.exit(1);
             }
         }
         catch (error) {

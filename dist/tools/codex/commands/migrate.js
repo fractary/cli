@@ -2,10 +2,11 @@
 /**
  * Migrate command (v3.0)
  *
- * Migrates legacy v2.0 configurations to v3.0 format:
- * - Detects v2.0 config structure
+ * Migrates legacy v2.x JSON configurations to v3.0 YAML format:
+ * - Detects legacy config at .fractary/plugins/codex/config.json
  * - Creates backup of old config
- * - Transforms to v3.0 format
+ * - Transforms to v3.0 YAML format
+ * - Writes to .fractary/codex.yaml
  * - Validates migration result
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
@@ -50,201 +51,106 @@ const commander_1 = require("commander");
 const chalk_1 = __importDefault(require("chalk"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs/promises"));
-const file_scanner_1 = require("../utils/file-scanner");
+const migrate_config_1 = require("../migrate-config");
 /**
- * Get config directory path
+ * Check if file exists
  */
-function getConfigDir() {
-    return path.join(process.cwd(), '.fractary', 'plugins', 'codex');
+async function fileExists(filePath) {
+    try {
+        await fs.access(filePath);
+        return true;
+    }
+    catch {
+        return false;
+    }
 }
 /**
- * Detect if config is v2.0 format
+ * Read file content
  */
-function isV2Config(config) {
-    return (config.organizationSlug !== undefined ||
-        config.directories !== undefined ||
-        config.rules !== undefined ||
-        (config.version === undefined && config.organization === undefined));
-}
-/**
- * Detect if config is v3.0 format
- */
-function isV3Config(config) {
-    return config.version?.startsWith('3.') && config.organization !== undefined;
-}
-/**
- * Migrate v2.0 config to v3.0 format
- */
-function migrateV2ToV3(v2Config) {
-    const org = v2Config.organizationSlug || 'unknown';
-    // Extract sync patterns from v2
-    const syncPatterns = [
-        ...(v2Config.rules?.autoSyncPatterns || []),
-        ...(v2Config.syncPatterns || []),
-        'docs/**/*.md',
-        'specs/**/*.md',
-        '.fractary/standards/**',
-        '.fractary/templates/**'
-    ];
-    // Remove duplicates
-    const uniquePatterns = [...new Set(syncPatterns)];
-    return {
-        version: '3.0',
-        organization: org,
-        cache: {
-            directory: '.fractary/plugins/codex/cache',
-            defaultTtl: '24h',
-            maxSize: '100MB',
-            cleanupInterval: '1h'
-        },
-        storage: {
-            providers: {
-                github: {
-                    token: '${GITHUB_TOKEN}',
-                    baseUrl: 'https://api.github.com'
-                }
-            },
-            defaultProvider: 'github'
-        },
-        types: {
-            custom: {}
-        },
-        sync: {
-            environments: {
-                dev: 'develop',
-                test: 'test',
-                staging: 'staging',
-                prod: 'main'
-            },
-            patterns: uniquePatterns,
-            exclude: []
-        },
-        mcp: {
-            enabled: false
-        }
-    };
-}
-/**
- * Create backup of config file
- */
-async function createBackup(configPath) {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const backupPath = configPath.replace('.json', `.v2-backup-${timestamp}.json`);
-    const content = await (0, file_scanner_1.readFileContent)(configPath);
-    await (0, file_scanner_1.writeFileContent)(backupPath, content);
-    return backupPath;
+async function readFileContent(filePath) {
+    return fs.readFile(filePath, 'utf-8');
 }
 function migrateCommand() {
     const cmd = new commander_1.Command('migrate');
     cmd
-        .description('Migrate legacy v2.0 configuration to v3.0 format')
+        .description('Migrate legacy JSON configuration to v3.0 YAML format')
         .option('--dry-run', 'Show migration plan without executing')
         .option('--no-backup', 'Skip creating backup of old config')
         .option('--json', 'Output as JSON')
         .action(async (options) => {
         try {
-            const configDir = getConfigDir();
-            const configPath = path.join(configDir, 'config.json');
-            // Check if config exists
-            if (!await (0, file_scanner_1.fileExists)(configPath)) {
+            const legacyConfigPath = path.join(process.cwd(), '.fractary', 'plugins', 'codex', 'config.json');
+            const newConfigPath = path.join(process.cwd(), '.fractary', 'codex.yaml');
+            // Check if legacy config exists
+            if (!await fileExists(legacyConfigPath)) {
                 if (options.json) {
                     console.log(JSON.stringify({
                         status: 'no_config',
-                        message: 'No configuration file found'
+                        message: 'No legacy configuration file found',
+                        path: legacyConfigPath
                     }));
                 }
                 else {
-                    console.log(chalk_1.default.yellow('No configuration file found.'));
-                    console.log(chalk_1.default.dim('Run "fractary codex init" to create a new v3.0 configuration.'));
+                    console.log(chalk_1.default.yellow('⚠ No legacy configuration file found.'));
+                    console.log(chalk_1.default.dim(`  Expected: ${legacyConfigPath}`));
+                    console.log(chalk_1.default.dim('\nRun "fractary codex init" to create a new v3.0 YAML configuration.'));
                 }
                 return;
             }
-            // Load current config
-            const content = await (0, file_scanner_1.readFileContent)(configPath);
-            let config;
+            // Check if new YAML config already exists
+            if (await fileExists(newConfigPath) && !options.dryRun) {
+                if (options.json) {
+                    console.log(JSON.stringify({
+                        status: 'already_migrated',
+                        message: 'YAML configuration already exists',
+                        path: newConfigPath
+                    }));
+                }
+                else {
+                    console.log(chalk_1.default.yellow('⚠ YAML configuration already exists.'));
+                    console.log(chalk_1.default.dim(`  Path: ${newConfigPath}`));
+                    console.log(chalk_1.default.dim('\nUse "fractary codex init --force" to recreate.'));
+                }
+                return;
+            }
+            // Load and validate legacy config
+            const legacyContent = await readFileContent(legacyConfigPath);
+            let legacyConfig;
             try {
-                config = JSON.parse(content);
+                legacyConfig = JSON.parse(legacyContent);
             }
             catch {
-                console.error(chalk_1.default.red('Error:'), 'Invalid JSON in config file.');
+                console.error(chalk_1.default.red('Error:'), 'Invalid JSON in legacy config file.');
                 process.exit(1);
             }
-            // Check if already v3.0
-            if (isV3Config(config)) {
-                if (options.json) {
-                    console.log(JSON.stringify({
-                        status: 'already_v3',
-                        message: 'Configuration is already v3.0 format',
-                        version: config.version
-                    }));
-                }
-                else {
-                    console.log(chalk_1.default.green('✓'), 'Configuration is already v3.0 format.');
-                    console.log(chalk_1.default.dim(`  Version: ${config.version}`));
-                    console.log(chalk_1.default.dim(`  Organization: ${config.organization}`));
-                }
-                return;
+            if (!options.json && !options.dryRun) {
+                console.log(chalk_1.default.blue('Migrating Codex configuration to v3.0 YAML format...\n'));
             }
-            // Check if v2.0
-            if (!isV2Config(config)) {
-                if (options.json) {
-                    console.log(JSON.stringify({
-                        status: 'unknown_format',
-                        message: 'Unknown configuration format'
-                    }));
-                }
-                else {
-                    console.log(chalk_1.default.yellow('Unknown configuration format.'));
-                    console.log(chalk_1.default.dim('Cannot determine config version. Consider running "fractary codex init --force".'));
-                }
-                return;
-            }
-            // Perform migration
-            const v3Config = migrateV2ToV3(config);
-            if (options.json) {
-                const output = {
-                    status: 'migration_ready',
-                    dryRun: options.dryRun || false,
-                    v2Config: config,
-                    v3Config: v3Config,
-                    changes: [
-                        { field: 'version', from: 'undefined', to: '3.0' },
-                        { field: 'organization', from: config.organizationSlug, to: v3Config.organization },
-                        { field: 'cache', from: 'undefined', to: 'new cache config' },
-                        { field: 'storage', from: 'undefined', to: 'new storage config' },
-                        { field: 'types', from: 'undefined', to: 'new types config' },
-                        { field: 'sync', from: 'legacy rules', to: 'new sync config' },
-                        { field: 'mcp', from: 'undefined', to: 'new mcp config' }
-                    ]
-                };
-                if (!options.dryRun) {
-                    output.status = 'migrated';
-                }
-                console.log(JSON.stringify(output, null, 2));
-                if (options.dryRun) {
-                    return;
-                }
-            }
-            else {
-                console.log(chalk_1.default.bold('v2.0 → v3.0 Migration\n'));
-                console.log(chalk_1.default.bold('Detected v2.0 Configuration:'));
-                console.log(chalk_1.default.dim(`  Organization: ${config.organizationSlug || 'not set'}`));
-                if (config.directories) {
-                    console.log(chalk_1.default.dim(`  Source: ${config.directories.source || 'default'}`));
-                    console.log(chalk_1.default.dim(`  Target: ${config.directories.target || 'default'}`));
-                }
-                if (config.rules?.autoSyncPatterns?.length) {
-                    console.log(chalk_1.default.dim(`  Patterns: ${config.rules.autoSyncPatterns.length} patterns`));
-                }
+            // Perform migration using utility
+            const migrationResult = await (0, migrate_config_1.migrateConfig)(legacyConfigPath, {
+                createBackup: options.backup !== false,
+                backupSuffix: new Date().toISOString().replace(/[:.]/g, '-')
+            });
+            // Display migration plan
+            if (!options.json) {
+                console.log(chalk_1.default.bold('Legacy Configuration:'));
+                console.log(chalk_1.default.dim(`  Path: ${legacyConfigPath}`));
+                console.log(chalk_1.default.dim(`  Organization: ${legacyConfig.organization || legacyConfig.organizationSlug || 'unknown'}`));
                 console.log('');
-                console.log(chalk_1.default.bold('Migration Plan:'));
-                console.log(chalk_1.default.green('  + Add version: "3.0"'));
-                console.log(chalk_1.default.green('  + Add cache configuration'));
-                console.log(chalk_1.default.green('  + Add storage providers'));
-                console.log(chalk_1.default.green('  + Add type registry'));
-                console.log(chalk_1.default.green('  + Convert sync patterns'));
-                console.log(chalk_1.default.green('  + Add MCP configuration'));
-                console.log(chalk_1.default.red('  - Remove legacy fields (directories, rules)'));
+                console.log(chalk_1.default.bold('Migration Changes:'));
+                console.log(chalk_1.default.green('  + Format: JSON → YAML'));
+                console.log(chalk_1.default.green('  + Location: .fractary/plugins/codex/ → .fractary/'));
+                console.log(chalk_1.default.green('  + File: config.json → codex.yaml'));
+                console.log(chalk_1.default.green('  + Storage: Multi-provider configuration'));
+                console.log(chalk_1.default.green('  + Cache: Modern cache management'));
+                console.log(chalk_1.default.green('  + Types: Custom type registry'));
+                if (migrationResult.warnings.length > 0) {
+                    console.log('');
+                    console.log(chalk_1.default.yellow('Warnings:'));
+                    for (const warning of migrationResult.warnings) {
+                        console.log(chalk_1.default.yellow('  ⚠'), chalk_1.default.dim(warning));
+                    }
+                }
                 console.log('');
                 if (options.dryRun) {
                     console.log(chalk_1.default.blue('Dry run - no changes made.'));
@@ -252,45 +158,67 @@ function migrateCommand() {
                     return;
                 }
             }
-            // Create backup
-            let backupPath = null;
-            if (options.backup !== false) {
-                backupPath = await createBackup(configPath);
-                if (!options.json) {
-                    console.log(chalk_1.default.dim(`Backup created: ${path.basename(backupPath)}`));
+            // JSON output for dry run
+            if (options.json) {
+                const output = {
+                    status: options.dryRun ? 'migration_ready' : 'migrated',
+                    dryRun: options.dryRun || false,
+                    legacyConfig: {
+                        path: legacyConfigPath,
+                        organization: legacyConfig.organization || legacyConfig.organizationSlug
+                    },
+                    newConfig: {
+                        path: newConfigPath,
+                        organization: migrationResult.yamlConfig.organization
+                    },
+                    warnings: migrationResult.warnings,
+                    backupPath: migrationResult.backupPath
+                };
+                console.log(JSON.stringify(output, null, 2));
+                if (options.dryRun) {
+                    return;
                 }
             }
-            // Write new config
-            await (0, file_scanner_1.writeFileContent)(configPath, JSON.stringify(v3Config, null, 2));
-            // Create cache directory
-            const cacheDir = path.join(configDir, 'cache');
-            await fs.mkdir(cacheDir, { recursive: true });
-            // Create cache index
-            const indexPath = path.join(cacheDir, 'index.json');
-            if (!await (0, file_scanner_1.fileExists)(indexPath)) {
-                await (0, file_scanner_1.writeFileContent)(indexPath, JSON.stringify({
-                    version: '1.0',
-                    created: new Date().toISOString(),
-                    entries: {}
-                }, null, 2));
-            }
-            if (!options.json) {
-                console.log('');
-                console.log(chalk_1.default.green('✓'), 'Migration complete!');
-                console.log('');
-                console.log(chalk_1.default.bold('New Configuration:'));
-                console.log(chalk_1.default.dim(`  Version: ${v3Config.version}`));
-                console.log(chalk_1.default.dim(`  Organization: ${v3Config.organization}`));
-                console.log(chalk_1.default.dim(`  Cache: ${v3Config.cache.directory}`));
-                console.log(chalk_1.default.dim(`  Storage: ${v3Config.storage.defaultProvider}`));
-                console.log('');
-                if (backupPath) {
-                    console.log(chalk_1.default.dim(`To restore v2.0 config: cp ${path.basename(backupPath)} config.json`));
+            // Write new YAML config
+            if (!options.dryRun) {
+                await (0, migrate_config_1.writeYamlConfig)(migrationResult.yamlConfig, newConfigPath);
+                // Create cache directory
+                const cacheDir = path.join(process.cwd(), '.codex-cache');
+                await fs.mkdir(cacheDir, { recursive: true });
+                if (!options.json) {
+                    console.log(chalk_1.default.green('✓'), 'YAML configuration created');
+                    console.log(chalk_1.default.green('✓'), 'Cache directory initialized');
+                    if (migrationResult.backupPath) {
+                        console.log(chalk_1.default.green('✓'), 'Legacy config backed up');
+                    }
+                    console.log('');
+                    console.log(chalk_1.default.bold('New Configuration:'));
+                    console.log(chalk_1.default.dim(`  Path: ${newConfigPath}`));
+                    console.log(chalk_1.default.dim(`  Organization: ${migrationResult.yamlConfig.organization}`));
+                    console.log(chalk_1.default.dim(`  Cache: ${migrationResult.yamlConfig.cacheDir || '.codex-cache'}`));
+                    console.log(chalk_1.default.dim(`  Storage Providers: ${migrationResult.yamlConfig.storage?.length || 0}`));
+                    console.log('');
+                    console.log(chalk_1.default.bold('Next Steps:'));
+                    console.log(chalk_1.default.dim('  1. Review the new configuration: .fractary/codex.yaml'));
+                    console.log(chalk_1.default.dim('  2. Set your GitHub token: export GITHUB_TOKEN="your_token"'));
+                    console.log(chalk_1.default.dim('  3. Test fetching: fractary codex fetch codex://org/project/path'));
+                    if (migrationResult.backupPath) {
+                        console.log('');
+                        console.log(chalk_1.default.dim(`Backup saved: ${path.basename(migrationResult.backupPath)}`));
+                    }
                 }
             }
         }
         catch (error) {
-            console.error(chalk_1.default.red('Error:'), error.message);
+            if (options.json) {
+                console.log(JSON.stringify({
+                    status: 'error',
+                    message: error.message
+                }));
+            }
+            else {
+                console.error(chalk_1.default.red('Error:'), error.message);
+            }
             process.exit(1);
         }
     });

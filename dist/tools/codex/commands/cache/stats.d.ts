@@ -1,7 +1,7 @@
 /**
- * Cache stats command
+ * Cache stats command (v3.0)
  *
- * Display cache statistics and metrics
+ * Display cache statistics using SDK's CacheManager
  */
 import { Command } from 'commander';
 export declare function cacheStatsCommand(): Command;

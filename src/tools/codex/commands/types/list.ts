@@ -1,91 +1,21 @@
 /**
- * Types list command
+ * Types list command (v3.0)
  *
- * Lists all artifact types (built-in and custom)
+ * Lists all artifact types using SDK's TypeRegistry
  */
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import * as path from 'path';
-import { fileExists, readFileContent } from '../../utils/file-scanner';
+import { getClient } from '../../get-client';
 
 /**
- * Built-in artifact types from SDK v3.0
+ * Format TTL from seconds to human-readable string
  */
-const BUILT_IN_TYPES: Record<string, {
-  pattern: string;
-  description: string;
-  ttl: string;
-}> = {
-  docs: {
-    pattern: 'docs/**/*.md',
-    description: 'Documentation files',
-    ttl: '24h'
-  },
-  specs: {
-    pattern: 'specs/**/*.md',
-    description: 'Specification documents',
-    ttl: '7d'
-  },
-  logs: {
-    pattern: 'logs/**/*.md',
-    description: 'Session logs and summaries',
-    ttl: '24h'
-  },
-  standards: {
-    pattern: 'standards/**/*.md',
-    description: 'Coding and process standards',
-    ttl: '7d'
-  },
-  templates: {
-    pattern: 'templates/**/*',
-    description: 'File and project templates',
-    ttl: '7d'
-  },
-  state: {
-    pattern: 'state/**/*.json',
-    description: 'Persistent state files',
-    ttl: '1h'
-  }
-};
-
-interface TypeConfig {
-  pattern: string;
-  description?: string;
-  ttl?: string;
-}
-
-interface CodexConfig {
-  version: string;
-  types?: {
-    custom?: Record<string, TypeConfig>;
-  };
-}
-
-/**
- * Get config directory path
- */
-function getConfigDir(): string {
-  return path.join(process.cwd(), '.fractary', 'plugins', 'codex');
-}
-
-/**
- * Load custom types from config
- */
-async function loadCustomTypes(): Promise<Record<string, TypeConfig>> {
-  const configPath = path.join(getConfigDir(), 'config.json');
-
-  try {
-    if (await fileExists(configPath)) {
-      const content = await readFileContent(configPath);
-      const config: CodexConfig = JSON.parse(content);
-      return config.types?.custom || {};
-    }
-  } catch {
-    // Config load failed
-  }
-
-  return {};
+function formatTtl(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86400)}d`;
 }
 
 export function typesListCommand(): Command {
@@ -98,49 +28,39 @@ export function typesListCommand(): Command {
     .option('--builtin-only', 'Show only built-in types')
     .action(async (options) => {
       try {
-        const customTypes = await loadCustomTypes();
+        // Get CodexClient instance
+        const client = await getClient();
+        const registry = client.getTypeRegistry();
 
-        // Build type list
-        const types: Array<{
-          name: string;
-          pattern: string;
-          description: string;
-          ttl: string;
-          builtin: boolean;
-        }> = [];
+        // Get all types from registry
+        const allTypes = registry.list();
 
-        // Add built-in types
-        if (!options.customOnly) {
-          for (const [name, type] of Object.entries(BUILT_IN_TYPES)) {
-            types.push({
-              name,
-              pattern: type.pattern,
-              description: type.description,
-              ttl: type.ttl,
-              builtin: true
-            });
-          }
-        }
-
-        // Add custom types
-        if (!options.builtinOnly) {
-          for (const [name, type] of Object.entries(customTypes)) {
-            types.push({
-              name,
-              pattern: type.pattern,
-              description: type.description || 'Custom type',
-              ttl: type.ttl || '24h',
-              builtin: false
-            });
-          }
+        // Filter based on options
+        let types = allTypes;
+        if (options.customOnly) {
+          types = allTypes.filter(t => !registry.isBuiltIn(t.name));
+        } else if (options.builtinOnly) {
+          types = allTypes.filter(t => registry.isBuiltIn(t.name));
         }
 
         if (options.json) {
+          const builtinCount = types.filter(t => registry.isBuiltIn(t.name)).length;
+          const customCount = types.length - builtinCount;
+
           console.log(JSON.stringify({
             count: types.length,
-            builtinCount: types.filter(t => t.builtin).length,
-            customCount: types.filter(t => !t.builtin).length,
-            types
+            builtinCount,
+            customCount,
+            types: types.map(t => ({
+              name: t.name,
+              description: t.description,
+              patterns: t.patterns,
+              defaultTtl: t.defaultTtl,
+              ttl: formatTtl(t.defaultTtl),
+              builtin: registry.isBuiltIn(t.name),
+              archiveAfterDays: t.archiveAfterDays,
+              archiveStorage: t.archiveStorage
+            }))
           }, null, 2));
           return;
         }
@@ -153,33 +73,35 @@ export function typesListCommand(): Command {
         console.log(chalk.bold('Artifact Types\n'));
 
         // Group by built-in vs custom
-        const builtinTypes = types.filter(t => t.builtin);
-        const customTypesList = types.filter(t => !t.builtin);
+        const builtinTypes = types.filter(t => registry.isBuiltIn(t.name));
+        const customTypes = types.filter(t => !registry.isBuiltIn(t.name));
 
         if (builtinTypes.length > 0 && !options.customOnly) {
           console.log(chalk.bold('Built-in Types'));
-          console.log(chalk.dim('─'.repeat(60)));
+          console.log(chalk.dim('─'.repeat(70)));
 
           for (const type of builtinTypes) {
-            console.log(`  ${chalk.cyan(type.name.padEnd(12))} ${type.pattern.padEnd(25)} ${chalk.dim(`TTL: ${type.ttl}`)}`);
+            const patternStr = type.patterns[0] || '';
+            console.log(`  ${chalk.cyan(type.name.padEnd(12))} ${patternStr.padEnd(30)} ${chalk.dim(`TTL: ${formatTtl(type.defaultTtl)}`)}`);
             console.log(`  ${chalk.dim(' '.repeat(12) + type.description)}`);
           }
           console.log('');
         }
 
-        if (customTypesList.length > 0 && !options.builtinOnly) {
+        if (customTypes.length > 0 && !options.builtinOnly) {
           console.log(chalk.bold('Custom Types'));
-          console.log(chalk.dim('─'.repeat(60)));
+          console.log(chalk.dim('─'.repeat(70)));
 
-          for (const type of customTypesList) {
-            console.log(`  ${chalk.green(type.name.padEnd(12))} ${type.pattern.padEnd(25)} ${chalk.dim(`TTL: ${type.ttl}`)}`);
+          for (const type of customTypes) {
+            const patternStr = type.patterns[0] || '';
+            console.log(`  ${chalk.green(type.name.padEnd(12))} ${patternStr.padEnd(30)} ${chalk.dim(`TTL: ${formatTtl(type.defaultTtl)}`)}`);
             console.log(`  ${chalk.dim(' '.repeat(12) + type.description)}`);
           }
           console.log('');
         }
 
         // Summary
-        console.log(chalk.dim(`Total: ${types.length} types (${builtinTypes.length} built-in, ${customTypesList.length} custom)`));
+        console.log(chalk.dim(`Total: ${types.length} types (${builtinTypes.length} built-in, ${customTypes.length} custom)`));
 
       } catch (error: any) {
         console.error(chalk.red('Error:'), error.message);

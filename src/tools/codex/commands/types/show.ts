@@ -1,116 +1,21 @@
 /**
- * Types show command
+ * Types show command (v3.0)
  *
- * Shows details for a specific artifact type
+ * Shows details for a specific artifact type using SDK's TypeRegistry
  */
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import * as path from 'path';
-import { fileExists, readFileContent } from '../../utils/file-scanner';
+import { getClient } from '../../get-client';
 
 /**
- * Built-in artifact types from SDK v3.0
+ * Format TTL from seconds to human-readable string
  */
-const BUILT_IN_TYPES: Record<string, {
-  pattern: string;
-  description: string;
-  ttl: string;
-  examples: string[];
-}> = {
-  docs: {
-    pattern: 'docs/**/*.md',
-    description: 'Documentation files including guides, tutorials, and API references',
-    ttl: '24h',
-    examples: [
-      'codex://org/project/docs/api.md',
-      'codex://org/project/docs/guides/getting-started.md'
-    ]
-  },
-  specs: {
-    pattern: 'specs/**/*.md',
-    description: 'Specification documents defining system behavior and architecture',
-    ttl: '7d',
-    examples: [
-      'codex://org/project/specs/SPEC-0001.md',
-      'codex://org/project/specs/architecture/overview.md'
-    ]
-  },
-  logs: {
-    pattern: 'logs/**/*.md',
-    description: 'Session logs, conversation summaries, and decision records',
-    ttl: '24h',
-    examples: [
-      'codex://org/project/logs/2025-01-15-session.md',
-      'codex://org/project/logs/decisions/ADR-001.md'
-    ]
-  },
-  standards: {
-    pattern: 'standards/**/*.md',
-    description: 'Coding standards, process guidelines, and best practices',
-    ttl: '7d',
-    examples: [
-      'codex://org/project/standards/typescript.md',
-      'codex://org/project/standards/git-workflow.md'
-    ]
-  },
-  templates: {
-    pattern: 'templates/**/*',
-    description: 'File and project templates for code generation',
-    ttl: '7d',
-    examples: [
-      'codex://org/project/templates/component.tsx.hbs',
-      'codex://org/project/templates/spec.md.hbs'
-    ]
-  },
-  state: {
-    pattern: 'state/**/*.json',
-    description: 'Persistent state files for cross-session data',
-    ttl: '1h',
-    examples: [
-      'codex://org/project/state/project-status.json',
-      'codex://org/project/state/metrics.json'
-    ]
-  }
-};
-
-interface TypeConfig {
-  pattern: string;
-  description?: string;
-  ttl?: string;
-}
-
-interface CodexConfig {
-  version: string;
-  types?: {
-    custom?: Record<string, TypeConfig>;
-  };
-}
-
-/**
- * Get config directory path
- */
-function getConfigDir(): string {
-  return path.join(process.cwd(), '.fractary', 'plugins', 'codex');
-}
-
-/**
- * Load custom types from config
- */
-async function loadCustomTypes(): Promise<Record<string, TypeConfig>> {
-  const configPath = path.join(getConfigDir(), 'config.json');
-
-  try {
-    if (await fileExists(configPath)) {
-      const content = await readFileContent(configPath);
-      const config: CodexConfig = JSON.parse(content);
-      return config.types?.custom || {};
-    }
-  } catch {
-    // Config load failed
-  }
-
-  return {};
+function formatTtl(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86400)}d`;
 }
 
 export function typesShowCommand(): Command {
@@ -122,64 +27,73 @@ export function typesShowCommand(): Command {
     .option('--json', 'Output as JSON')
     .action(async (name: string, options) => {
       try {
-        const customTypes = await loadCustomTypes();
+        // Get CodexClient instance
+        const client = await getClient();
+        const registry = client.getTypeRegistry();
 
-        // Check built-in types first
-        if (BUILT_IN_TYPES[name]) {
-          const type = BUILT_IN_TYPES[name];
+        // Get type from registry
+        const type = registry.get(name);
 
-          if (options.json) {
-            console.log(JSON.stringify({
-              name,
-              builtin: true,
-              pattern: type.pattern,
-              description: type.description,
-              ttl: type.ttl,
-              examples: type.examples
-            }, null, 2));
-            return;
-          }
+        if (!type) {
+          console.error(chalk.red('Error:'), `Type "${name}" not found.`);
+          console.log(chalk.dim('Run "fractary codex types list" to see available types.'));
+          process.exit(1);
+        }
 
-          console.log(chalk.bold(`Type: ${chalk.cyan(name)}\n`));
-          console.log(`  ${chalk.dim('Source:')}      Built-in`);
-          console.log(`  ${chalk.dim('Pattern:')}     ${type.pattern}`);
-          console.log(`  ${chalk.dim('TTL:')}         ${type.ttl}`);
-          console.log(`  ${chalk.dim('Description:')} ${type.description}`);
+        const isBuiltin = registry.isBuiltIn(name);
+
+        if (options.json) {
+          console.log(JSON.stringify({
+            name: type.name,
+            builtin: isBuiltin,
+            description: type.description,
+            patterns: type.patterns,
+            defaultTtl: type.defaultTtl,
+            ttl: formatTtl(type.defaultTtl),
+            archiveAfterDays: type.archiveAfterDays,
+            archiveStorage: type.archiveStorage,
+            syncPatterns: type.syncPatterns,
+            excludePatterns: type.excludePatterns
+          }, null, 2));
+          return;
+        }
+
+        // Display formatted output
+        const nameColor = isBuiltin ? chalk.cyan : chalk.green;
+        console.log(chalk.bold(`Type: ${nameColor(name)}\n`));
+
+        console.log(`  ${chalk.dim('Source:')}      ${isBuiltin ? 'Built-in' : 'Custom'}`);
+        console.log(`  ${chalk.dim('Description:')} ${type.description}`);
+        console.log(`  ${chalk.dim('TTL:')}         ${formatTtl(type.defaultTtl)} (${type.defaultTtl} seconds)`);
+        console.log('');
+
+        console.log(chalk.bold('Patterns'));
+        for (const pattern of type.patterns) {
+          console.log(`  ${chalk.dim('•')} ${pattern}`);
+        }
+
+        if (type.archiveAfterDays !== null) {
           console.log('');
-          console.log(chalk.bold('Examples'));
-          for (const example of type.examples) {
-            console.log(`  ${chalk.dim('•')} ${example}`);
-          }
-          return;
+          console.log(chalk.bold('Archive Settings'));
+          console.log(`  ${chalk.dim('After:')}   ${type.archiveAfterDays} days`);
+          console.log(`  ${chalk.dim('Storage:')} ${type.archiveStorage || 'not set'}`);
         }
 
-        // Check custom types
-        if (customTypes[name]) {
-          const type = customTypes[name];
-
-          if (options.json) {
-            console.log(JSON.stringify({
-              name,
-              builtin: false,
-              pattern: type.pattern,
-              description: type.description || 'Custom type',
-              ttl: type.ttl || '24h'
-            }, null, 2));
-            return;
+        if (type.syncPatterns && type.syncPatterns.length > 0) {
+          console.log('');
+          console.log(chalk.bold('Sync Patterns'));
+          for (const pattern of type.syncPatterns) {
+            console.log(`  ${chalk.dim('•')} ${pattern}`);
           }
-
-          console.log(chalk.bold(`Type: ${chalk.green(name)}\n`));
-          console.log(`  ${chalk.dim('Source:')}      Custom`);
-          console.log(`  ${chalk.dim('Pattern:')}     ${type.pattern}`);
-          console.log(`  ${chalk.dim('TTL:')}         ${type.ttl || '24h'}`);
-          console.log(`  ${chalk.dim('Description:')} ${type.description || 'Custom type'}`);
-          return;
         }
 
-        // Type not found
-        console.error(chalk.red('Error:'), `Type "${name}" not found.`);
-        console.log(chalk.dim('Run "fractary codex types list" to see available types.'));
-        process.exit(1);
+        if (type.excludePatterns && type.excludePatterns.length > 0) {
+          console.log('');
+          console.log(chalk.bold('Exclude Patterns'));
+          for (const pattern of type.excludePatterns) {
+            console.log(`  ${chalk.dim('•')} ${pattern}`);
+          }
+        }
 
       } catch (error: any) {
         console.error(chalk.red('Error:'), error.message);

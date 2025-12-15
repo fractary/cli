@@ -1,8 +1,8 @@
 "use strict";
 /**
- * Types remove command
+ * Types remove command (v3.0)
  *
- * Unregisters a custom artifact type
+ * Unregisters a custom artifact type from YAML configuration
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -45,40 +45,8 @@ exports.typesRemoveCommand = typesRemoveCommand;
 const commander_1 = require("commander");
 const chalk_1 = __importDefault(require("chalk"));
 const path = __importStar(require("path"));
-const file_scanner_1 = require("../../utils/file-scanner");
-/**
- * Built-in type names (cannot be removed)
- */
-const BUILT_IN_TYPE_NAMES = ['docs', 'specs', 'logs', 'standards', 'templates', 'state'];
-/**
- * Get config directory path
- */
-function getConfigDir() {
-    return path.join(process.cwd(), '.fractary', 'plugins', 'codex');
-}
-/**
- * Load codex configuration
- */
-async function loadConfig() {
-    const configPath = path.join(getConfigDir(), 'config.json');
-    try {
-        if (await (0, file_scanner_1.fileExists)(configPath)) {
-            const content = await (0, file_scanner_1.readFileContent)(configPath);
-            return JSON.parse(content);
-        }
-    }
-    catch {
-        // Config load failed
-    }
-    return null;
-}
-/**
- * Save codex configuration
- */
-async function saveConfig(config) {
-    const configPath = path.join(getConfigDir(), 'config.json');
-    await (0, file_scanner_1.writeFileContent)(configPath, JSON.stringify(config, null, 2));
-}
+const migrate_config_1 = require("../../migrate-config");
+const get_client_1 = require("../../get-client");
 function typesRemoveCommand() {
     const cmd = new commander_1.Command('remove');
     cmd
@@ -88,28 +56,32 @@ function typesRemoveCommand() {
         .option('--force', 'Skip confirmation')
         .action(async (name, options) => {
         try {
+            // Get registry to check type status
+            const client = await (0, get_client_1.getClient)();
+            const registry = client.getTypeRegistry();
             // Check for built-in type
-            if (BUILT_IN_TYPE_NAMES.includes(name)) {
+            if (registry.isBuiltIn(name)) {
                 console.error(chalk_1.default.red('Error:'), `Cannot remove built-in type "${name}".`);
                 console.log(chalk_1.default.dim('Built-in types are permanent and cannot be removed.'));
                 process.exit(1);
             }
-            // Load existing config
-            const config = await loadConfig();
-            if (!config) {
-                console.error(chalk_1.default.red('Error:'), 'Codex not initialized.');
-                console.log(chalk_1.default.dim('Run "fractary codex init" first.'));
-                process.exit(1);
-            }
             // Check if custom type exists
-            if (!config.types?.custom?.[name]) {
+            if (!registry.has(name)) {
                 console.error(chalk_1.default.red('Error:'), `Custom type "${name}" not found.`);
                 console.log(chalk_1.default.dim('Run "fractary codex types list --custom-only" to see custom types.'));
                 process.exit(1);
             }
             // Get type info before removal
-            const removedType = config.types.custom[name];
-            // Remove the type
+            const typeInfo = registry.get(name);
+            // Load YAML configuration
+            const configPath = path.join(process.cwd(), '.fractary', 'codex.yaml');
+            const config = await (0, migrate_config_1.readYamlConfig)(configPath);
+            // Check if custom type exists in config
+            if (!config.types?.custom?.[name]) {
+                console.error(chalk_1.default.red('Error:'), `Custom type "${name}" not found in configuration.`);
+                process.exit(1);
+            }
+            // Remove the type from config
             delete config.types.custom[name];
             // Clean up empty objects
             if (Object.keys(config.types.custom).length === 0) {
@@ -119,27 +91,33 @@ function typesRemoveCommand() {
                 delete config.types;
             }
             // Save config
-            await saveConfig(config);
+            await (0, migrate_config_1.writeYamlConfig)(config, configPath);
             if (options.json) {
                 console.log(JSON.stringify({
                     success: true,
                     removed: {
-                        name,
-                        ...removedType
-                    }
+                        name: typeInfo.name,
+                        description: typeInfo.description,
+                        patterns: typeInfo.patterns,
+                        defaultTtl: typeInfo.defaultTtl
+                    },
+                    message: 'Custom type removed successfully. Changes will take effect on next CLI invocation.'
                 }, null, 2));
                 return;
             }
             console.log(chalk_1.default.green('✓'), `Removed custom type "${chalk_1.default.cyan(name)}"`);
             console.log('');
             console.log(chalk_1.default.dim('Removed configuration:'));
-            console.log(`  ${chalk_1.default.dim('Pattern:')} ${removedType.pattern}`);
-            if (removedType.ttl) {
-                console.log(`  ${chalk_1.default.dim('TTL:')}     ${removedType.ttl}`);
-            }
+            console.log(`  ${chalk_1.default.dim('Pattern:')}     ${typeInfo.patterns.join(', ')}`);
+            console.log(`  ${chalk_1.default.dim('Description:')} ${typeInfo.description}`);
+            console.log('');
+            console.log(chalk_1.default.dim('Note: Custom type will be removed on next CLI invocation.'));
         }
         catch (error) {
             console.error(chalk_1.default.red('Error:'), error.message);
+            if (error.message.includes('Failed to load configuration')) {
+                console.log(chalk_1.default.dim('\nRun "fractary codex init" to create a configuration.'));
+            }
             process.exit(1);
         }
     });
