@@ -22,7 +22,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { createFaberCommand } from './tools/faber';
 import { createCodexCommand } from './tools/codex';
-// import { createForgeCommand } from './tools/forge'; // TODO: Re-enable when @fractary/forge SDK is published
+import { createForgeCommand } from './tools/forge';
 import {
   createWorkAliasCommand,
   createRepoAliasCommand,
@@ -44,7 +44,7 @@ program
 // SDK tool commands
 program.addCommand(createFaberCommand());
 program.addCommand(createCodexCommand());
-// program.addCommand(createForgeCommand()); // TODO: Re-enable when @fractary/forge SDK is published
+program.addCommand(createForgeCommand());
 
 // Future tools (commented out until available)
 // program.addCommand(createHelmCommand());

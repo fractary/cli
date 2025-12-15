@@ -5,6 +5,7 @@
  */
 
 import { Command } from 'commander';
+// Bundle/Starter commands
 import { CreateCommand } from './commands/create';
 import { InstallCommand } from './commands/install';
 import { UpdateCommand } from './commands/update';
@@ -16,6 +17,8 @@ import { StatusCommand } from './commands/status';
 import { RemoveCommand } from './commands/remove';
 import { ConfigCommand } from './commands/config';
 import { SearchCommand } from './commands/search';
+// Agent/Tool commands
+import { initCommand } from './commands/init';
 
 /**
  * Create and configure the forge command
@@ -24,10 +27,13 @@ export function createForgeCommand(): Command {
   const forge = new Command('forge');
 
   forge
-    .description('Asset management and project scaffolding')
-    .version('1.0.0');
+    .description('Agent/tool definitions and asset management')
+    .version('1.1.0');
 
-  // Register all commands
+  // Agent/Tool management commands
+  forge.addCommand(initCommand());
+
+  // Bundle/Starter management commands (existing)
   const commands = [
     new CreateCommand(),
     new InstallCommand(),
