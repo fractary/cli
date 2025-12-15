@@ -12,7 +12,6 @@ import {
   CacheManager,
   StorageManager,
   TypeRegistry,
-  loadConfig,
   validateUri,
   parseReference,
   resolveReference,
@@ -20,7 +19,6 @@ import {
   createStorageManager,
   createDefaultRegistry,
   isCacheEntryValid,
-  type CodexConfig,
   type CacheStats,
   type FetchResult as SDKFetchResult,
   type ParsedReference,
@@ -30,6 +28,9 @@ import {
   ConfigurationError,
   ValidationError
 } from '@fractary/codex';
+import { readYamlConfig } from './migrate-config';
+import { resolveEnvVarsInConfig } from './config-types';
+import * as path from 'path';
 
 /**
  * Options for creating CodexClient
@@ -72,7 +73,7 @@ export class CodexClient {
   private cache: CacheManager;
   private storage: StorageManager;
   private types: TypeRegistry;
-  private config: CodexConfig;
+  private organization: string;
 
   /**
    * Private constructor - use CodexClient.create() instead
@@ -81,12 +82,12 @@ export class CodexClient {
     cache: CacheManager,
     storage: StorageManager,
     types: TypeRegistry,
-    config: CodexConfig
+    organization: string
   ) {
     this.cache = cache;
     this.storage = storage;
     this.types = types;
-    this.config = config;
+    this.organization = organization;
   }
 
   /**
@@ -102,23 +103,55 @@ export class CodexClient {
    */
   static async create(options?: CodexClientOptions): Promise<CodexClient> {
     try {
-      // Load configuration (v2.x format for now, will be v3.0 YAML after migration)
-      const config = loadConfig({
-        organizationSlug: options?.organizationSlug
-      });
+      // Load YAML configuration
+      const configPath = path.join(process.cwd(), '.fractary', 'codex.yaml');
+      let config;
+
+      try {
+        config = await readYamlConfig(configPath);
+        // Resolve environment variables in config
+        config = resolveEnvVarsInConfig(config);
+      } catch (error) {
+        throw new ConfigurationError(
+          `Failed to load configuration from ${configPath}. Run "fractary codex init" to create a configuration.`
+        );
+      }
+
+      const organization = options?.organizationSlug || config.organization;
+      const cacheDir = options?.cacheDir || config.cacheDir || '.codex-cache';
+
+      // Build storage manager config from YAML storage providers
+      const storageConfig: any = {};
+
+      if (config.storage && Array.isArray(config.storage)) {
+        for (const provider of config.storage) {
+          if (provider.type === 'github') {
+            storageConfig.github = {
+              token: provider.token || process.env.GITHUB_TOKEN,
+              apiBaseUrl: provider.apiBaseUrl || 'https://api.github.com',
+              branch: provider.branch || 'main'
+            };
+          } else if (provider.type === 'http') {
+            storageConfig.http = {
+              baseUrl: provider.baseUrl,
+              headers: provider.headers,
+              timeout: provider.timeout || 30000
+            };
+          } else if (provider.type === 'local') {
+            storageConfig.local = {
+              basePath: provider.basePath || './knowledge',
+              followSymlinks: provider.followSymlinks || false
+            };
+          }
+        }
+      }
 
       // Initialize storage manager
-      // For now, use GitHub as primary storage provider
-      const storage = createStorageManager({
-        github: {
-          token: process.env.GITHUB_TOKEN,
-          apiBaseUrl: 'https://api.github.com'
-        }
-      });
+      const storage = createStorageManager(storageConfig);
 
       // Initialize cache manager
       const cache = new CacheManager({
-        cacheDir: options?.cacheDir || '.codex-cache',
+        cacheDir,
         defaultTtl: 86400, // 24 hours
         maxMemoryEntries: 100,
         maxMemorySize: 50 * 1024 * 1024, // 50MB
@@ -131,7 +164,7 @@ export class CodexClient {
       // Initialize type registry
       const types = createDefaultRegistry();
 
-      return new CodexClient(cache, storage, types, config);
+      return new CodexClient(cache, storage, types, organization);
     } catch (error) {
       if (error instanceof CodexError) {
         throw error;
@@ -282,12 +315,12 @@ export class CodexClient {
   }
 
   /**
-   * Get the loaded configuration
+   * Get the organization slug
    *
-   * @returns CodexConfig object
+   * @returns Organization slug string
    */
-  getConfig(): CodexConfig {
-    return this.config;
+  getOrganization(): string {
+    return this.organization;
   }
 }
 

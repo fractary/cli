@@ -7,7 +7,7 @@
  * This wrapper encapsulates CacheManager, StorageManager, and TypeRegistry,
  * providing a clean interface for CLI commands.
  */
-import { CacheManager, StorageManager, TypeRegistry, type CodexConfig, type CacheStats } from '@fractary/codex';
+import { CacheManager, StorageManager, TypeRegistry, type CacheStats } from '@fractary/codex';
 /**
  * Options for creating CodexClient
  */
@@ -46,7 +46,7 @@ export declare class CodexClient {
     private cache;
     private storage;
     private types;
-    private config;
+    private organization;
     /**
      * Private constructor - use CodexClient.create() instead
      */
@@ -140,11 +140,11 @@ export declare class CodexClient {
      */
     getStorageManager(): StorageManager;
     /**
-     * Get the loaded configuration
+     * Get the organization slug
      *
-     * @returns CodexConfig object
+     * @returns Organization slug string
      */
-    getConfig(): CodexConfig;
+    getOrganization(): string;
 }
 export { CodexError, ConfigurationError, ValidationError, PermissionDeniedError } from '@fractary/codex';
 //# sourceMappingURL=client.d.ts.map

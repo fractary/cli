@@ -8,9 +8,45 @@
  * This wrapper encapsulates CacheManager, StorageManager, and TypeRegistry,
  * providing a clean interface for CLI commands.
  */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PermissionDeniedError = exports.ValidationError = exports.ConfigurationError = exports.CodexError = exports.CodexClient = void 0;
 const codex_1 = require("@fractary/codex");
+const migrate_config_1 = require("./migrate-config");
+const config_types_1 = require("./config-types");
+const path = __importStar(require("path"));
 /**
  * Unified Codex client
  *
@@ -23,11 +59,11 @@ class CodexClient {
     /**
      * Private constructor - use CodexClient.create() instead
      */
-    constructor(cache, storage, types, config) {
+    constructor(cache, storage, types, organization) {
         this.cache = cache;
         this.storage = storage;
         this.types = types;
-        this.config = config;
+        this.organization = organization;
     }
     /**
      * Create a new CodexClient instance
@@ -42,21 +78,50 @@ class CodexClient {
      */
     static async create(options) {
         try {
-            // Load configuration (v2.x format for now, will be v3.0 YAML after migration)
-            const config = (0, codex_1.loadConfig)({
-                organizationSlug: options?.organizationSlug
-            });
-            // Initialize storage manager
-            // For now, use GitHub as primary storage provider
-            const storage = (0, codex_1.createStorageManager)({
-                github: {
-                    token: process.env.GITHUB_TOKEN,
-                    apiBaseUrl: 'https://api.github.com'
+            // Load YAML configuration
+            const configPath = path.join(process.cwd(), '.fractary', 'codex.yaml');
+            let config;
+            try {
+                config = await (0, migrate_config_1.readYamlConfig)(configPath);
+                // Resolve environment variables in config
+                config = (0, config_types_1.resolveEnvVarsInConfig)(config);
+            }
+            catch (error) {
+                throw new codex_1.ConfigurationError(`Failed to load configuration from ${configPath}. Run "fractary codex init" to create a configuration.`);
+            }
+            const organization = options?.organizationSlug || config.organization;
+            const cacheDir = options?.cacheDir || config.cacheDir || '.codex-cache';
+            // Build storage manager config from YAML storage providers
+            const storageConfig = {};
+            if (config.storage && Array.isArray(config.storage)) {
+                for (const provider of config.storage) {
+                    if (provider.type === 'github') {
+                        storageConfig.github = {
+                            token: provider.token || process.env.GITHUB_TOKEN,
+                            apiBaseUrl: provider.apiBaseUrl || 'https://api.github.com',
+                            branch: provider.branch || 'main'
+                        };
+                    }
+                    else if (provider.type === 'http') {
+                        storageConfig.http = {
+                            baseUrl: provider.baseUrl,
+                            headers: provider.headers,
+                            timeout: provider.timeout || 30000
+                        };
+                    }
+                    else if (provider.type === 'local') {
+                        storageConfig.local = {
+                            basePath: provider.basePath || './knowledge',
+                            followSymlinks: provider.followSymlinks || false
+                        };
+                    }
                 }
-            });
+            }
+            // Initialize storage manager
+            const storage = (0, codex_1.createStorageManager)(storageConfig);
             // Initialize cache manager
             const cache = new codex_1.CacheManager({
-                cacheDir: options?.cacheDir || '.codex-cache',
+                cacheDir,
                 defaultTtl: 86400, // 24 hours
                 maxMemoryEntries: 100,
                 maxMemorySize: 50 * 1024 * 1024, // 50MB
@@ -66,7 +131,7 @@ class CodexClient {
             cache.setStorageManager(storage);
             // Initialize type registry
             const types = (0, codex_1.createDefaultRegistry)();
-            return new CodexClient(cache, storage, types, config);
+            return new CodexClient(cache, storage, types, organization);
         }
         catch (error) {
             if (error instanceof codex_1.CodexError) {
@@ -205,12 +270,12 @@ class CodexClient {
         return this.storage;
     }
     /**
-     * Get the loaded configuration
+     * Get the organization slug
      *
-     * @returns CodexConfig object
+     * @returns Organization slug string
      */
-    getConfig() {
-        return this.config;
+    getOrganization() {
+        return this.organization;
     }
 }
 exports.CodexClient = CodexClient;
