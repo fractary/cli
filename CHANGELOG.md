@@ -5,7 +5,7 @@ All notable changes to the Fractary CLI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.2] - 2025-12-14
 
 ### Added
 - **Codex Documentation Suite**: Comprehensive documentation for Codex v3.0 CLI integration
@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Updated documentation structure to better support external integrations
 - Improved clarity for fractary/claude-plugins and other downstream consumers
+
+## [0.3.1] - 2025-12-13
+
+### Added
+- Complete Codex v3.0 CLI implementation with SDK integration
 
 ## [0.3.0] - 2025-12-12
 
