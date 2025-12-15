@@ -43,9 +43,9 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PermissionDeniedError = exports.ValidationError = exports.ConfigurationError = exports.CodexError = exports.CodexClient = void 0;
-const codex_1 = require("@fractary/codex");
-const migrate_config_1 = require("./migrate-config");
-const config_types_1 = require("./config-types");
+// Dynamic imports for config utilities to avoid loading js-yaml at module time
+// import { readYamlConfig } from './migrate-config';
+// import { resolveEnvVarsInConfig } from './config-types';
 const path = __importStar(require("path"));
 /**
  * Unified Codex client
@@ -77,17 +77,22 @@ class CodexClient {
      * ```
      */
     static async create(options) {
+        // Dynamic import of SDK
+        const { CacheManager, createStorageManager, createDefaultRegistry, CodexError, ConfigurationError } = await Promise.resolve().then(() => __importStar(require('@fractary/codex')));
+        // Dynamic import of config utilities (to avoid loading js-yaml at module time)
+        const { readYamlConfig } = await Promise.resolve().then(() => __importStar(require('./migrate-config')));
+        const { resolveEnvVarsInConfig } = await Promise.resolve().then(() => __importStar(require('./config-types')));
         try {
             // Load YAML configuration
             const configPath = path.join(process.cwd(), '.fractary', 'codex.yaml');
             let config;
             try {
-                config = await (0, migrate_config_1.readYamlConfig)(configPath);
+                config = await readYamlConfig(configPath);
                 // Resolve environment variables in config
-                config = (0, config_types_1.resolveEnvVarsInConfig)(config);
+                config = resolveEnvVarsInConfig(config);
             }
             catch (error) {
-                throw new codex_1.ConfigurationError(`Failed to load configuration from ${configPath}. Run "fractary codex init" to create a configuration.`);
+                throw new ConfigurationError(`Failed to load configuration from ${configPath}. Run "fractary codex init" to create a configuration.`);
             }
             const organization = options?.organizationSlug || config.organization;
             const cacheDir = options?.cacheDir || config.cacheDir || '.codex-cache';
@@ -118,9 +123,9 @@ class CodexClient {
                 }
             }
             // Initialize storage manager
-            const storage = (0, codex_1.createStorageManager)(storageConfig);
+            const storage = createStorageManager(storageConfig);
             // Initialize cache manager
-            const cache = new codex_1.CacheManager({
+            const cache = new CacheManager({
                 cacheDir,
                 defaultTtl: 86400, // 24 hours
                 maxMemoryEntries: 100,
@@ -130,7 +135,7 @@ class CodexClient {
             // Connect storage to cache
             cache.setStorageManager(storage);
             // Initialize type registry with built-in types
-            const types = (0, codex_1.createDefaultRegistry)();
+            const types = createDefaultRegistry();
             // Load and register custom types from config
             if (config.types?.custom) {
                 for (const [name, customType] of Object.entries(config.types.custom)) {
@@ -148,10 +153,10 @@ class CodexClient {
             return new CodexClient(cache, storage, types, organization);
         }
         catch (error) {
-            if (error instanceof codex_1.CodexError) {
+            if (error instanceof CodexError) {
                 throw error;
             }
-            throw new codex_1.CodexError(`Failed to initialize CodexClient: ${error instanceof Error ? error.message : String(error)}`);
+            throw new CodexError(`Failed to initialize CodexClient: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
     /**
@@ -175,14 +180,16 @@ class CodexClient {
      * ```
      */
     async fetch(uri, options) {
+        // Dynamic import of SDK functions
+        const { validateUri, resolveReference, CodexError } = await Promise.resolve().then(() => __importStar(require('@fractary/codex')));
         // Validate URI early
-        if (!(0, codex_1.validateUri)(uri)) {
-            throw new codex_1.CodexError(`Invalid codex URI: ${uri}`);
+        if (!validateUri(uri)) {
+            throw new CodexError(`Invalid codex URI: ${uri}`);
         }
         // Resolve URI to reference (with cache path)
-        const resolved = (0, codex_1.resolveReference)(uri);
+        const resolved = resolveReference(uri);
         if (!resolved) {
-            throw new codex_1.CodexError(`Failed to resolve URI: ${uri}`);
+            throw new CodexError(`Failed to resolve URI: ${uri}`);
         }
         try {
             // If bypassing cache, fetch directly from storage
@@ -210,7 +217,7 @@ class CodexClient {
             };
         }
         catch (error) {
-            throw new codex_1.CodexError(`Failed to fetch ${uri}: ${error instanceof Error ? error.message : String(error)}`);
+            throw new CodexError(`Failed to fetch ${uri}: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
     /**
@@ -294,9 +301,9 @@ class CodexClient {
 }
 exports.CodexClient = CodexClient;
 // Re-export SDK error classes for convenience
-var codex_2 = require("@fractary/codex");
-Object.defineProperty(exports, "CodexError", { enumerable: true, get: function () { return codex_2.CodexError; } });
-Object.defineProperty(exports, "ConfigurationError", { enumerable: true, get: function () { return codex_2.ConfigurationError; } });
-Object.defineProperty(exports, "ValidationError", { enumerable: true, get: function () { return codex_2.ValidationError; } });
-Object.defineProperty(exports, "PermissionDeniedError", { enumerable: true, get: function () { return codex_2.PermissionDeniedError; } });
+var codex_1 = require("@fractary/codex");
+Object.defineProperty(exports, "CodexError", { enumerable: true, get: function () { return codex_1.CodexError; } });
+Object.defineProperty(exports, "ConfigurationError", { enumerable: true, get: function () { return codex_1.ConfigurationError; } });
+Object.defineProperty(exports, "ValidationError", { enumerable: true, get: function () { return codex_1.ValidationError; } });
+Object.defineProperty(exports, "PermissionDeniedError", { enumerable: true, get: function () { return codex_1.PermissionDeniedError; } });
 //# sourceMappingURL=client.js.map

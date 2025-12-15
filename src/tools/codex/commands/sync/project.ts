@@ -12,12 +12,10 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import * as path from 'path';
-import {
-  createSyncManager,
-  createLocalStorage,
-  detectCurrentProject,
-  type SyncDirection,
-  type SyncOptions
+// Import types only
+import type {
+  SyncDirection,
+  SyncOptions
 } from '@fractary/codex';
 import { readYamlConfig } from '../../migrate-config';
 
@@ -78,6 +76,9 @@ export function syncProjectCommand(): Command {
           console.log(chalk.dim('Run "fractary codex init" first.'));
           process.exit(1);
         }
+
+        // Dynamic import to avoid loading SDK at module time
+        const { createSyncManager, createLocalStorage, detectCurrentProject } = await import('@fractary/codex');
 
         // Determine project name
         let projectName = name;

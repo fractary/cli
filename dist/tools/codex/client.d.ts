@@ -7,7 +7,7 @@
  * This wrapper encapsulates CacheManager, StorageManager, and TypeRegistry,
  * providing a clean interface for CLI commands.
  */
-import { CacheManager, StorageManager, TypeRegistry, type CacheStats } from '@fractary/codex';
+import type { CacheManager, StorageManager, TypeRegistry, CacheStats } from '@fractary/codex';
 /**
  * Options for creating CodexClient
  */

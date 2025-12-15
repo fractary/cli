@@ -8,28 +8,20 @@
  * providing a clean interface for CLI commands.
  */
 
-import {
+// Type-only imports
+import type {
   CacheManager,
   StorageManager,
   TypeRegistry,
-  validateUri,
-  parseReference,
-  resolveReference,
-  createCacheManager,
-  createStorageManager,
-  createDefaultRegistry,
-  isCacheEntryValid,
-  type CacheStats,
-  type FetchResult as SDKFetchResult,
-  type ParsedReference,
-  type ResolvedReference,
-  type FetchOptions as SDKFetchOptions,
-  CodexError,
-  ConfigurationError,
-  ValidationError
+  CacheStats,
+  FetchResult as SDKFetchResult,
+  ParsedReference,
+  ResolvedReference,
+  FetchOptions as SDKFetchOptions,
 } from '@fractary/codex';
-import { readYamlConfig } from './migrate-config';
-import { resolveEnvVarsInConfig } from './config-types';
+// Dynamic imports for config utilities to avoid loading js-yaml at module time
+// import { readYamlConfig } from './migrate-config';
+// import { resolveEnvVarsInConfig } from './config-types';
 import * as path from 'path';
 
 /**
@@ -102,6 +94,19 @@ export class CodexClient {
    * ```
    */
   static async create(options?: CodexClientOptions): Promise<CodexClient> {
+    // Dynamic import of SDK
+    const {
+      CacheManager,
+      createStorageManager,
+      createDefaultRegistry,
+      CodexError,
+      ConfigurationError
+    } = await import('@fractary/codex');
+
+    // Dynamic import of config utilities (to avoid loading js-yaml at module time)
+    const { readYamlConfig } = await import('./migrate-config');
+    const { resolveEnvVarsInConfig } = await import('./config-types');
+
     try {
       // Load YAML configuration
       const configPath = path.join(process.cwd(), '.fractary', 'codex.yaml');
@@ -211,6 +216,9 @@ export class CodexClient {
    * ```
    */
   async fetch(uri: string, options?: FetchOptions): Promise<FetchResult> {
+    // Dynamic import of SDK functions
+    const { validateUri, resolveReference, CodexError } = await import('@fractary/codex');
+
     // Validate URI early
     if (!validateUri(uri)) {
       throw new CodexError(`Invalid codex URI: ${uri}`);

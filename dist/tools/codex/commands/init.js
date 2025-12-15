@@ -51,7 +51,6 @@ const commander_1 = require("commander");
 const chalk_1 = __importDefault(require("chalk"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs/promises"));
-const codex_1 = require("@fractary/codex");
 const migrate_config_1 = require("../migrate-config");
 /**
  * Extract org from git remote URL
@@ -98,9 +97,10 @@ function initCommand() {
                 org = await getOrgFromGitRemote();
             }
             if (!org) {
-                // Try SDK's resolveOrganization
+                // Try SDK's resolveOrganization (dynamic import)
                 try {
-                    org = (0, codex_1.resolveOrganization)({
+                    const { resolveOrganization } = await Promise.resolve().then(() => __importStar(require('@fractary/codex')));
+                    org = resolveOrganization({
                         repoName: path.basename(process.cwd())
                     });
                 }

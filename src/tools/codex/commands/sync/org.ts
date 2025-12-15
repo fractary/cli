@@ -13,11 +13,10 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import {
-  createSyncManager,
-  createLocalStorage,
-  type SyncDirection,
-  type SyncOptions
+// Import types only
+import type {
+  SyncDirection,
+  SyncOptions
 } from '@fractary/codex';
 import { readYamlConfig } from '../../migrate-config';
 
@@ -96,6 +95,9 @@ async function syncRepository(
   const startTime = Date.now();
 
   try {
+    // Dynamic import to avoid loading SDK at module time
+    const { createSyncManager, createLocalStorage } = await import('@fractary/codex');
+
     // Note: In a real implementation, this would:
     // 1. Clone or update local copy of repo to a temp directory
     // 2. Create SyncManager for that directory

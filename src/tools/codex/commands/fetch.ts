@@ -12,7 +12,6 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import * as fs from 'fs/promises';
 import { getClient } from '../get-client';
-import { validateUri } from '@fractary/codex';
 
 /**
  * Calculate content hash
@@ -34,6 +33,9 @@ export function fetchCommand(): Command {
     .option('--output <file>', 'Write content to file instead of stdout')
     .action(async (uri: string, options) => {
       try {
+        // Dynamically import validateUri to avoid loading SDK at module time
+        const { validateUri } = await import('@fractary/codex');
+
         // Validate URI format
         if (!validateUri(uri)) {
           console.error(chalk.red('Error: Invalid URI format'));

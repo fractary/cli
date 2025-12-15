@@ -13,7 +13,8 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import * as path from 'path';
 import * as fs from 'fs/promises';
-import { createDefaultConfig, configExists } from '../migrate-config';
+// Dynamic import to avoid loading js-yaml at module time
+// import { createDefaultConfig, configExists } from '../migrate-config';
 
 /**
  * Extract organization from git remote URL
@@ -54,6 +55,9 @@ export function initCommand(): Command {
     .option('--force', 'Overwrite existing configuration')
     .action(async (options) => {
       try {
+        // Dynamic import to avoid loading js-yaml at module time
+        const { createDefaultConfig, configExists } = await import('../migrate-config');
+
         console.log(chalk.blue('Initializing Forge configuration...\n'));
 
         // Resolve organization

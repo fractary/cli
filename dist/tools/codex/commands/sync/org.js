@@ -51,7 +51,6 @@ const commander_1 = require("commander");
 const chalk_1 = __importDefault(require("chalk"));
 const path = __importStar(require("path"));
 const child_process_1 = require("child_process");
-const codex_1 = require("@fractary/codex");
 const migrate_config_1 = require("../../migrate-config");
 /**
  * Get environment branch mapping
@@ -101,6 +100,8 @@ function shouldExclude(repoName, excludePatterns) {
 async function syncRepository(repo, config, direction, syncOptions) {
     const startTime = Date.now();
     try {
+        // Dynamic import to avoid loading SDK at module time
+        const { createSyncManager, createLocalStorage } = await Promise.resolve().then(() => __importStar(require('@fractary/codex')));
         // Note: In a real implementation, this would:
         // 1. Clone or update local copy of repo to a temp directory
         // 2. Create SyncManager for that directory
@@ -110,11 +111,11 @@ async function syncRepository(repo, config, direction, syncOptions) {
         // Assuming repo is already cloned to a local directory
         const repoDir = path.join(process.cwd(), '..', repo.name);
         // Create LocalStorage for this repo
-        const localStorage = (0, codex_1.createLocalStorage)({
+        const localStorage = createLocalStorage({
             baseDir: repoDir
         });
         // Create SyncManager
-        const syncManager = (0, codex_1.createSyncManager)({
+        const syncManager = createSyncManager({
             localStorage,
             config: config.sync,
             manifestPath: path.join(repoDir, '.fractary', '.codex-sync-manifest.json')

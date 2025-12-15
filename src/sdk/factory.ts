@@ -3,23 +3,19 @@
  *
  * This module implements the factory pattern for SDK integration,
  * providing centralized access to @fractary/faber SDK managers.
+ *
+ * IMPORTANT: Uses dynamic imports to avoid loading @fractary/faber at module load time.
+ * This prevents CLI hangs when running simple commands like --help.
  */
 
-import {
+// Import types only (these don't cause module execution)
+import type {
   WorkManager,
   RepoManager,
   SpecManager,
   LogManager,
   StateManager,
   FaberWorkflow,
-  loadWorkConfig,
-  loadRepoConfig,
-  loadSpecConfig,
-  loadLogConfig,
-  loadStateConfig,
-  loadFaberConfig,
-  getDefaultWorkflowConfig,
-  mergeWithDefaults,
   WorkConfig,
   RepoConfig,
   SpecConfig,
@@ -59,13 +55,15 @@ export class SDKNotAvailableError extends Error {
 }
 
 /**
- * Get WorkManager instance (lazy-loaded)
+ * Get WorkManager instance (lazy-loaded with dynamic import)
  */
 export async function getWorkManager(config?: WorkConfig): Promise<WorkManager> {
   if (!instances.work) {
     try {
-      const resolvedConfig = config ?? loadWorkConfig() ?? undefined;
-      instances.work = new WorkManager(resolvedConfig);
+      // Dynamic import to avoid loading SDK at module load time
+      const faber = await import('@fractary/faber');
+      const resolvedConfig = config ?? faber.loadWorkConfig() ?? undefined;
+      instances.work = new faber.WorkManager(resolvedConfig);
     } catch (error) {
       throw new SDKNotAvailableError('faber', error instanceof Error ? error : undefined);
     }
@@ -74,13 +72,15 @@ export async function getWorkManager(config?: WorkConfig): Promise<WorkManager> 
 }
 
 /**
- * Get RepoManager instance (lazy-loaded)
+ * Get RepoManager instance (lazy-loaded with dynamic import)
  */
 export async function getRepoManager(config?: RepoConfig): Promise<RepoManager> {
   if (!instances.repo) {
     try {
-      const resolvedConfig = config ?? loadRepoConfig() ?? undefined;
-      instances.repo = new RepoManager(resolvedConfig);
+      // Dynamic import to avoid loading SDK at module load time
+      const faber = await import('@fractary/faber');
+      const resolvedConfig = config ?? faber.loadRepoConfig() ?? undefined;
+      instances.repo = new faber.RepoManager(resolvedConfig);
     } catch (error) {
       throw new SDKNotAvailableError('faber', error instanceof Error ? error : undefined);
     }
@@ -89,13 +89,15 @@ export async function getRepoManager(config?: RepoConfig): Promise<RepoManager> 
 }
 
 /**
- * Get SpecManager instance (lazy-loaded)
+ * Get SpecManager instance (lazy-loaded with dynamic import)
  */
 export async function getSpecManager(config?: SpecConfig): Promise<SpecManager> {
   if (!instances.spec) {
     try {
-      const resolvedConfig = config ?? loadSpecConfig();
-      instances.spec = new SpecManager(resolvedConfig);
+      // Dynamic import to avoid loading SDK at module load time
+      const faber = await import('@fractary/faber');
+      const resolvedConfig = config ?? faber.loadSpecConfig();
+      instances.spec = new faber.SpecManager(resolvedConfig);
     } catch (error) {
       throw new SDKNotAvailableError('faber', error instanceof Error ? error : undefined);
     }
@@ -104,13 +106,15 @@ export async function getSpecManager(config?: SpecConfig): Promise<SpecManager> 
 }
 
 /**
- * Get LogManager instance (lazy-loaded)
+ * Get LogManager instance (lazy-loaded with dynamic import)
  */
 export async function getLogManager(config?: LogConfig): Promise<LogManager> {
   if (!instances.logs) {
     try {
-      const resolvedConfig = config ?? loadLogConfig();
-      instances.logs = new LogManager(resolvedConfig);
+      // Dynamic import to avoid loading SDK at module load time
+      const faber = await import('@fractary/faber');
+      const resolvedConfig = config ?? faber.loadLogConfig();
+      instances.logs = new faber.LogManager(resolvedConfig);
     } catch (error) {
       throw new SDKNotAvailableError('faber', error instanceof Error ? error : undefined);
     }
@@ -119,13 +123,15 @@ export async function getLogManager(config?: LogConfig): Promise<LogManager> {
 }
 
 /**
- * Get StateManager instance (lazy-loaded)
+ * Get StateManager instance (lazy-loaded with dynamic import)
  */
 export async function getStateManager(config?: StateConfig): Promise<StateManager> {
   if (!instances.state) {
     try {
-      const resolvedConfig = config ?? loadStateConfig();
-      instances.state = new StateManager(resolvedConfig);
+      // Dynamic import to avoid loading SDK at module load time
+      const faber = await import('@fractary/faber');
+      const resolvedConfig = config ?? faber.loadStateConfig();
+      instances.state = new faber.StateManager(resolvedConfig);
     } catch (error) {
       throw new SDKNotAvailableError('faber', error instanceof Error ? error : undefined);
     }
@@ -134,16 +140,18 @@ export async function getStateManager(config?: StateConfig): Promise<StateManage
 }
 
 /**
- * Get FaberWorkflow instance (lazy-loaded)
+ * Get FaberWorkflow instance (lazy-loaded with dynamic import)
  */
 export async function getWorkflow(config?: Partial<WorkflowConfig>): Promise<FaberWorkflow> {
   if (!instances.workflow) {
     try {
-      const faberConfig = loadFaberConfig();
+      // Dynamic import to avoid loading SDK at module load time
+      const faber = await import('@fractary/faber');
+      const faberConfig = faber.loadFaberConfig();
       const workflowConfig = config
-        ? mergeWithDefaults(config)
-        : faberConfig?.workflow ?? getDefaultWorkflowConfig();
-      instances.workflow = new FaberWorkflow({ config: workflowConfig });
+        ? faber.mergeWithDefaults(config)
+        : faberConfig?.workflow ?? faber.getDefaultWorkflowConfig();
+      instances.workflow = new faber.FaberWorkflow({ config: workflowConfig });
     } catch (error) {
       throw new SDKNotAvailableError('faber', error instanceof Error ? error : undefined);
     }
@@ -175,17 +183,81 @@ export async function isFaberAvailable(): Promise<boolean> {
   }
 }
 
-// Re-export config loaders for convenience
-export {
-  loadWorkConfig,
-  loadRepoConfig,
-  loadSpecConfig,
-  loadLogConfig,
-  loadStateConfig,
-  loadFaberConfig,
-  getDefaultWorkflowConfig,
-  mergeWithDefaults,
-};
+/**
+ * Load work configuration (dynamic import)
+ */
+export async function loadWorkConfig(): Promise<WorkConfig | null> {
+  try {
+    const faber = await import('@fractary/faber');
+    return faber.loadWorkConfig();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Load repo configuration (dynamic import)
+ */
+export async function loadRepoConfig(): Promise<RepoConfig | null> {
+  try {
+    const faber = await import('@fractary/faber');
+    return faber.loadRepoConfig();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Load spec configuration (dynamic import)
+ */
+export async function loadSpecConfig(): Promise<SpecConfig> {
+  const faber = await import('@fractary/faber');
+  return faber.loadSpecConfig();
+}
+
+/**
+ * Load log configuration (dynamic import)
+ */
+export async function loadLogConfig(): Promise<LogConfig> {
+  const faber = await import('@fractary/faber');
+  return faber.loadLogConfig();
+}
+
+/**
+ * Load state configuration (dynamic import)
+ */
+export async function loadStateConfig(): Promise<StateConfig> {
+  const faber = await import('@fractary/faber');
+  return faber.loadStateConfig();
+}
+
+/**
+ * Load FABER configuration (dynamic import)
+ */
+export async function loadFaberConfig(): Promise<FaberConfig | null> {
+  try {
+    const faber = await import('@fractary/faber');
+    return faber.loadFaberConfig();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get default workflow configuration (dynamic import)
+ */
+export async function getDefaultWorkflowConfig(): Promise<WorkflowConfig> {
+  const faber = await import('@fractary/faber');
+  return faber.getDefaultWorkflowConfig();
+}
+
+/**
+ * Merge with defaults (dynamic import)
+ */
+export async function mergeWithDefaults(config: Partial<WorkflowConfig>): Promise<WorkflowConfig> {
+  const faber = await import('@fractary/faber');
+  return faber.mergeWithDefaults(config);
+}
 
 // Re-export types
 export type {

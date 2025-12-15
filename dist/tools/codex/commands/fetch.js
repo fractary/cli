@@ -50,7 +50,6 @@ const commander_1 = require("commander");
 const chalk_1 = __importDefault(require("chalk"));
 const fs = __importStar(require("fs/promises"));
 const get_client_1 = require("../get-client");
-const codex_1 = require("@fractary/codex");
 /**
  * Calculate content hash
  */
@@ -69,8 +68,10 @@ function fetchCommand() {
         .option('--output <file>', 'Write content to file instead of stdout')
         .action(async (uri, options) => {
         try {
+            // Dynamically import validateUri to avoid loading SDK at module time
+            const { validateUri } = await Promise.resolve().then(() => __importStar(require('@fractary/codex')));
             // Validate URI format
-            if (!(0, codex_1.validateUri)(uri)) {
+            if (!validateUri(uri)) {
                 console.error(chalk_1.default.red('Error: Invalid URI format'));
                 console.log(chalk_1.default.dim('Expected: codex://org/project/path/to/file.md'));
                 console.log(chalk_1.default.dim('Example: codex://fractary/codex/docs/api.md'));

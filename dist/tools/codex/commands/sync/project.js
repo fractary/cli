@@ -50,7 +50,6 @@ exports.syncProjectCommand = syncProjectCommand;
 const commander_1 = require("commander");
 const chalk_1 = __importDefault(require("chalk"));
 const path = __importStar(require("path"));
-const codex_1 = require("@fractary/codex");
 const migrate_config_1 = require("../../migrate-config");
 /**
  * Get environment branch mapping
@@ -107,10 +106,12 @@ function syncProjectCommand() {
                 console.log(chalk_1.default.dim('Run "fractary codex init" first.'));
                 process.exit(1);
             }
+            // Dynamic import to avoid loading SDK at module time
+            const { createSyncManager, createLocalStorage, detectCurrentProject } = await Promise.resolve().then(() => __importStar(require('@fractary/codex')));
             // Determine project name
             let projectName = name;
             if (!projectName) {
-                const detected = (0, codex_1.detectCurrentProject)();
+                const detected = detectCurrentProject();
                 projectName = detected.project || null;
             }
             if (!projectName) {
@@ -128,11 +129,11 @@ function syncProjectCommand() {
             const direction = options.direction;
             const targetBranch = getEnvironmentBranch(config, options.env);
             // Create LocalStorage instance
-            const localStorage = (0, codex_1.createLocalStorage)({
+            const localStorage = createLocalStorage({
                 baseDir: process.cwd()
             });
             // Create SyncManager
-            const syncManager = (0, codex_1.createSyncManager)({
+            const syncManager = createSyncManager({
                 localStorage,
                 config: config.sync,
                 manifestPath: path.join(process.cwd(), '.fractary', '.codex-sync-manifest.json')

@@ -46,7 +46,8 @@ const commander_1 = require("commander");
 const chalk_1 = __importDefault(require("chalk"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs/promises"));
-const yaml = __importStar(require("js-yaml"));
+// Dynamic import to avoid loading js-yaml at module time
+// import * as yaml from 'js-yaml';
 const get_client_1 = require("../get-client");
 /**
  * Validate agent name format
@@ -58,7 +59,9 @@ function validateAgentName(name) {
 /**
  * Generate agent YAML template
  */
-function generateAgentYAML(name, options, config) {
+async function generateAgentYAML(name, options, config) {
+    // Dynamic import to avoid loading js-yaml at module time
+    const yaml = await Promise.resolve().then(() => __importStar(require('js-yaml')));
     const defaults = config.defaults.agent;
     const agentDef = {
         name,
@@ -121,7 +124,7 @@ function agentCreateCommand() {
                 // File doesn't exist, continue
             }
             // Generate YAML
-            const yamlContent = generateAgentYAML(name, options, config);
+            const yamlContent = await generateAgentYAML(name, options, config);
             // Write file
             await fs.writeFile(agentFile, yamlContent, 'utf-8');
             console.log(chalk_1.default.green('\n✓ Agent created successfully!'));
