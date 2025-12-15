@@ -129,8 +129,22 @@ class CodexClient {
             });
             // Connect storage to cache
             cache.setStorageManager(storage);
-            // Initialize type registry
+            // Initialize type registry with built-in types
             const types = (0, codex_1.createDefaultRegistry)();
+            // Load and register custom types from config
+            if (config.types?.custom) {
+                for (const [name, customType] of Object.entries(config.types.custom)) {
+                    const ct = customType; // Type from YAML config
+                    types.register({
+                        name,
+                        description: ct.description || `Custom type: ${name}`,
+                        patterns: ct.patterns || [],
+                        defaultTtl: ct.defaultTtl || 86400,
+                        archiveAfterDays: ct.archiveAfterDays !== undefined ? ct.archiveAfterDays : null,
+                        archiveStorage: ct.archiveStorage || null
+                    });
+                }
+            }
             return new CodexClient(cache, storage, types, organization);
         }
         catch (error) {

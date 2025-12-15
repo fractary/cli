@@ -1,7 +1,7 @@
 /**
- * Types add command
+ * Types add command (v3.0)
  *
- * Registers a custom artifact type
+ * Registers a custom artifact type in YAML configuration
  */
 import { Command } from 'commander';
 export declare function typesAddCommand(): Command;

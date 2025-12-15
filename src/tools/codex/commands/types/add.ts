@@ -1,69 +1,14 @@
 /**
- * Types add command
+ * Types add command (v3.0)
  *
- * Registers a custom artifact type
+ * Registers a custom artifact type in YAML configuration
  */
 
 import { Command } from 'commander';
 import chalk from 'chalk';
 import * as path from 'path';
-import { fileExists, readFileContent, writeFileContent } from '../../utils/file-scanner';
-
-/**
- * Built-in type names (cannot be overridden)
- */
-const BUILT_IN_TYPE_NAMES = ['docs', 'specs', 'logs', 'standards', 'templates', 'state'];
-
-interface TypeConfig {
-  pattern: string;
-  description?: string;
-  ttl?: string;
-}
-
-interface CodexConfig {
-  version: string;
-  organization?: string;
-  cache?: object;
-  storage?: object;
-  types?: {
-    custom?: Record<string, TypeConfig>;
-  };
-  sync?: object;
-  mcp?: object;
-}
-
-/**
- * Get config directory path
- */
-function getConfigDir(): string {
-  return path.join(process.cwd(), '.fractary', 'plugins', 'codex');
-}
-
-/**
- * Load codex configuration
- */
-async function loadConfig(): Promise<CodexConfig | null> {
-  const configPath = path.join(getConfigDir(), 'config.json');
-
-  try {
-    if (await fileExists(configPath)) {
-      const content = await readFileContent(configPath);
-      return JSON.parse(content) as CodexConfig;
-    }
-  } catch {
-    // Config load failed
-  }
-
-  return null;
-}
-
-/**
- * Save codex configuration
- */
-async function saveConfig(config: CodexConfig): Promise<void> {
-  const configPath = path.join(getConfigDir(), 'config.json');
-  await writeFileContent(configPath, JSON.stringify(config, null, 2));
-}
+import { readYamlConfig, writeYamlConfig } from '../../migrate-config';
+import { getClient } from '../../get-client';
 
 /**
  * Validate type name
@@ -73,10 +18,34 @@ function isValidTypeName(name: string): boolean {
 }
 
 /**
- * Parse TTL string
+ * Parse TTL string to seconds
  */
-function isValidTtl(ttl: string): boolean {
-  return /^\d+[smhd]$/.test(ttl);
+function parseTtl(ttl: string): number {
+  const match = ttl.match(/^(\d+)([smhd])$/);
+  if (!match) {
+    throw new Error('Invalid TTL format');
+  }
+
+  const value = parseInt(match[1], 10);
+  const unit = match[2];
+
+  switch (unit) {
+    case 's': return value;
+    case 'm': return value * 60;
+    case 'h': return value * 3600;
+    case 'd': return value * 86400;
+    default: throw new Error('Unknown TTL unit');
+  }
+}
+
+/**
+ * Format TTL from seconds to human-readable string
+ */
+function formatTtl(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86400)}d`;
 }
 
 export function typesAddCommand(): Command {
@@ -98,68 +67,70 @@ export function typesAddCommand(): Command {
           process.exit(1);
         }
 
+        // Get registry to check for conflicts
+        const client = await getClient();
+        const registry = client.getTypeRegistry();
+
         // Check for built-in type conflict
-        if (BUILT_IN_TYPE_NAMES.includes(name)) {
+        if (registry.isBuiltIn(name)) {
           console.error(chalk.red('Error:'), `Cannot override built-in type "${name}".`);
-          console.log(chalk.dim('Built-in types: ' + BUILT_IN_TYPE_NAMES.join(', ')));
+          const builtinNames = registry.list().filter(t => registry.isBuiltIn(t.name)).map(t => t.name);
+          console.log(chalk.dim('Built-in types: ' + builtinNames.join(', ')));
           process.exit(1);
         }
 
-        // Validate TTL
-        if (!isValidTtl(options.ttl)) {
+        // Check if type already exists
+        if (registry.has(name)) {
+          console.error(chalk.red('Error:'), `Custom type "${name}" already exists.`);
+          console.log(chalk.dim('Use "fractary codex types remove" first to remove it.'));
+          process.exit(1);
+        }
+
+        // Parse and validate TTL
+        let ttlSeconds: number;
+        try {
+          ttlSeconds = parseTtl(options.ttl);
+        } catch {
           console.error(chalk.red('Error:'), 'Invalid TTL format.');
           console.log(chalk.dim('Expected format: <number><unit> where unit is s (seconds), m (minutes), h (hours), or d (days)'));
           console.log(chalk.dim('Examples: 30m, 24h, 7d'));
           process.exit(1);
         }
 
-        // Load existing config
-        const config = await loadConfig();
-
-        if (!config) {
-          console.error(chalk.red('Error:'), 'Codex not initialized.');
-          console.log(chalk.dim('Run "fractary codex init" first.'));
-          process.exit(1);
-        }
+        // Load YAML configuration
+        const configPath = path.join(process.cwd(), '.fractary', 'codex.yaml');
+        const config = await readYamlConfig(configPath);
 
         // Initialize types.custom if needed
         if (!config.types) {
-          config.types = {};
+          config.types = { custom: {} };
         }
         if (!config.types.custom) {
           config.types.custom = {};
         }
 
-        // Check if type already exists
-        if (config.types.custom[name]) {
-          console.error(chalk.red('Error:'), `Custom type "${name}" already exists.`);
-          console.log(chalk.dim('Use "fractary codex types remove" first to remove it.'));
-          process.exit(1);
-        }
-
-        // Add the new type
-        const newType: TypeConfig = {
-          pattern: options.pattern,
-          ttl: options.ttl
+        // Add the new type to config
+        config.types.custom[name] = {
+          description: options.description || `Custom type: ${name}`,
+          patterns: [options.pattern],
+          defaultTtl: ttlSeconds
         };
 
-        if (options.description) {
-          newType.description = options.description;
-        }
-
-        config.types.custom[name] = newType;
-
         // Save config
-        await saveConfig(config);
+        await writeYamlConfig(config, configPath);
 
         if (options.json) {
           console.log(JSON.stringify({
             success: true,
             type: {
               name,
-              ...newType,
+              description: config.types.custom[name].description,
+              patterns: config.types.custom[name].patterns,
+              defaultTtl: ttlSeconds,
+              ttl: formatTtl(ttlSeconds),
               builtin: false
-            }
+            },
+            message: 'Custom type added successfully. Changes will take effect on next CLI invocation.'
           }, null, 2));
           return;
         }
@@ -167,15 +138,18 @@ export function typesAddCommand(): Command {
         console.log(chalk.green('✓'), `Added custom type "${chalk.cyan(name)}"`);
         console.log('');
         console.log(`  ${chalk.dim('Pattern:')}     ${options.pattern}`);
-        console.log(`  ${chalk.dim('TTL:')}         ${options.ttl}`);
+        console.log(`  ${chalk.dim('TTL:')}         ${formatTtl(ttlSeconds)} (${ttlSeconds} seconds)`);
         if (options.description) {
           console.log(`  ${chalk.dim('Description:')} ${options.description}`);
         }
         console.log('');
-        console.log(chalk.dim('Example URI: codex://org/project/' + options.pattern.replace('**/', '').replace('/*', '/example.md')));
+        console.log(chalk.dim('Note: Custom type will be available on next CLI invocation.'));
 
       } catch (error: any) {
         console.error(chalk.red('Error:'), error.message);
+        if (error.message.includes('Failed to load configuration')) {
+          console.log(chalk.dim('\nRun "fractary codex init" to create a configuration.'));
+        }
         process.exit(1);
       }
     });
