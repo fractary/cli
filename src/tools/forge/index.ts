@@ -5,20 +5,27 @@
  */
 
 import { Command } from 'commander';
-// Bundle/Starter commands
-import { CreateCommand } from './commands/create';
-import { InstallCommand } from './commands/install';
-import { UpdateCommand } from './commands/update';
-import { DeployCommand } from './commands/deploy';
-import { DiffCommand } from './commands/diff';
-import { ValidateCommand } from './commands/validate';
-import { ListCommand } from './commands/list';
-import { StatusCommand } from './commands/status';
-import { RemoveCommand } from './commands/remove';
-import { ConfigCommand } from './commands/config';
-import { SearchCommand } from './commands/search';
-// Agent/Tool commands
+// NOTE: Bundle/Starter commands temporarily disabled - they depend on old @fractary/forge SDK
+// The new v1.1.1 SDK has incompatible exports (AgentAPI/ToolAPI instead of ProjectManifest/ConfigManager)
+// These commands need to be migrated or the old SDK functionality needs to be restored
+// import { CreateCommand } from './commands/create';
+// import { InstallCommand } from './commands/install';
+// import { UpdateCommand } from './commands/update';
+// import { DeployCommand } from './commands/deploy';
+// import { DiffCommand } from './commands/diff';
+// import { ValidateCommand } from './commands/validate';
+// import { ListCommand } from './commands/list';
+// import { StatusCommand } from './commands/status';
+// import { RemoveCommand } from './commands/remove';
+// import { ConfigCommand } from './commands/config';
+// import { SearchCommand } from './commands/search';
+
+// Agent/Tool commands (using new SDK v1.1.1)
 import { initCommand } from './commands/init';
+import { agentCreateCommand } from './commands/agent-create';
+import { agentInfoCommand } from './commands/agent-info';
+import { agentListCommand } from './commands/agent-list';
+import { agentValidateCommand } from './commands/agent-validate';
 
 /**
  * Create and configure the forge command
@@ -30,25 +37,32 @@ export function createForgeCommand(): Command {
     .description('Agent/tool definitions and asset management')
     .version('1.1.0');
 
-  // Agent/Tool management commands
+  // Configuration commands
   forge.addCommand(initCommand());
 
-  // Bundle/Starter management commands (existing)
-  const commands = [
-    new CreateCommand(),
-    new InstallCommand(),
-    new UpdateCommand(),
-    new DeployCommand(),
-    new DiffCommand(),
-    new ValidateCommand(),
-    new ListCommand(),
-    new StatusCommand(),
-    new RemoveCommand(),
-    new ConfigCommand(),
-    new SearchCommand(),
-  ];
+  // Agent management commands
+  forge.addCommand(agentCreateCommand());
+  forge.addCommand(agentInfoCommand());
+  forge.addCommand(agentListCommand());
+  forge.addCommand(agentValidateCommand());
 
-  commands.forEach(cmd => cmd.register(forge));
+  // NOTE: Bundle/Starter management commands temporarily disabled
+  // See imports comment above for details
+  // const commands = [
+  //   new CreateCommand(),
+  //   new InstallCommand(),
+  //   new UpdateCommand(),
+  //   new DeployCommand(),
+  //   new DiffCommand(),
+  //   new ValidateCommand(),
+  //   new ListCommand(),
+  //   new StatusCommand(),
+  //   new RemoveCommand(),
+  //   new ConfigCommand(),
+  //   new SearchCommand(),
+  // ];
+  //
+  // commands.forEach(cmd => cmd.register(forge));
 
   return forge;
 }

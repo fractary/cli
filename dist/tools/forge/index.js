@@ -7,40 +7,58 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createForgeCommand = createForgeCommand;
 const commander_1 = require("commander");
-const create_1 = require("./commands/create");
-const install_1 = require("./commands/install");
-const update_1 = require("./commands/update");
-const deploy_1 = require("./commands/deploy");
-const diff_1 = require("./commands/diff");
-const validate_1 = require("./commands/validate");
-const list_1 = require("./commands/list");
-const status_1 = require("./commands/status");
-const remove_1 = require("./commands/remove");
-const config_1 = require("./commands/config");
-const search_1 = require("./commands/search");
+// NOTE: Bundle/Starter commands temporarily disabled - they depend on old @fractary/forge SDK
+// The new v1.1.1 SDK has incompatible exports (AgentAPI/ToolAPI instead of ProjectManifest/ConfigManager)
+// These commands need to be migrated or the old SDK functionality needs to be restored
+// import { CreateCommand } from './commands/create';
+// import { InstallCommand } from './commands/install';
+// import { UpdateCommand } from './commands/update';
+// import { DeployCommand } from './commands/deploy';
+// import { DiffCommand } from './commands/diff';
+// import { ValidateCommand } from './commands/validate';
+// import { ListCommand } from './commands/list';
+// import { StatusCommand } from './commands/status';
+// import { RemoveCommand } from './commands/remove';
+// import { ConfigCommand } from './commands/config';
+// import { SearchCommand } from './commands/search';
+// Agent/Tool commands (using new SDK v1.1.1)
+const init_1 = require("./commands/init");
+const agent_create_1 = require("./commands/agent-create");
+const agent_info_1 = require("./commands/agent-info");
+const agent_list_1 = require("./commands/agent-list");
+const agent_validate_1 = require("./commands/agent-validate");
 /**
  * Create and configure the forge command
  */
 function createForgeCommand() {
     const forge = new commander_1.Command('forge');
     forge
-        .description('Asset management and project scaffolding')
-        .version('1.0.0');
-    // Register all commands
-    const commands = [
-        new create_1.CreateCommand(),
-        new install_1.InstallCommand(),
-        new update_1.UpdateCommand(),
-        new deploy_1.DeployCommand(),
-        new diff_1.DiffCommand(),
-        new validate_1.ValidateCommand(),
-        new list_1.ListCommand(),
-        new status_1.StatusCommand(),
-        new remove_1.RemoveCommand(),
-        new config_1.ConfigCommand(),
-        new search_1.SearchCommand(),
-    ];
-    commands.forEach(cmd => cmd.register(forge));
+        .description('Agent/tool definitions and asset management')
+        .version('1.1.0');
+    // Configuration commands
+    forge.addCommand((0, init_1.initCommand)());
+    // Agent management commands
+    forge.addCommand((0, agent_create_1.agentCreateCommand)());
+    forge.addCommand((0, agent_info_1.agentInfoCommand)());
+    forge.addCommand((0, agent_list_1.agentListCommand)());
+    forge.addCommand((0, agent_validate_1.agentValidateCommand)());
+    // NOTE: Bundle/Starter management commands temporarily disabled
+    // See imports comment above for details
+    // const commands = [
+    //   new CreateCommand(),
+    //   new InstallCommand(),
+    //   new UpdateCommand(),
+    //   new DeployCommand(),
+    //   new DiffCommand(),
+    //   new ValidateCommand(),
+    //   new ListCommand(),
+    //   new StatusCommand(),
+    //   new RemoveCommand(),
+    //   new ConfigCommand(),
+    //   new SearchCommand(),
+    // ];
+    //
+    // commands.forEach(cmd => cmd.register(forge));
     return forge;
 }
 //# sourceMappingURL=index.js.map

@@ -57,7 +57,7 @@ export class ForgeClient {
     // Initialize SDK managers with resolver config
     const sdkConfig = {
       definitions: {
-        registry: this.buildResolverConfig(config, projectRoot),
+        registry: ForgeClient.buildResolverConfig(config, projectRoot),
       },
     };
 
