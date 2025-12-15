@@ -1,23 +1,25 @@
 /**
- * Sync org command
+ * Sync org command (v3.0)
  *
- * Synchronizes all projects in an organization with the codex repository
+ * Synchronizes all projects in an organization with the codex repository using SDK SyncManager:
+ * - Discovers repositories via GitHub CLI
+ * - Parallel sync execution
+ * - Pattern-based filtering and exclusion
+ * - Dry-run mode
+ * - Per-repo error handling
  */
 
 import { Command } from 'commander';
 import chalk from 'chalk';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { fileExists, readFileContent } from '../../utils/file-scanner';
-
-interface SyncConfig {
-  version: string;
-  organization: string;
-  sync?: {
-    environments?: Record<string, string>;
-    exclude?: string[];
-  };
-}
+import {
+  createSyncManager,
+  createLocalStorage,
+  type SyncDirection,
+  type SyncOptions
+} from '@fractary/codex';
+import { readYamlConfig } from '../../migrate-config';
 
 interface RepoInfo {
   name: string;
@@ -28,33 +30,23 @@ interface RepoInfo {
 interface OrgSyncResult {
   repo: string;
   status: 'success' | 'skipped' | 'error';
-  itemsSynced?: number;
+  filesSynced?: number;
+  duration?: number;
   error?: string;
 }
 
 /**
- * Get config directory path
+ * Get environment branch mapping
  */
-function getConfigDir(): string {
-  return path.join(process.cwd(), '.fractary', 'plugins', 'codex');
-}
+function getEnvironmentBranch(config: any, env: string): string {
+  const envMap = config.sync?.environments || {
+    dev: 'develop',
+    test: 'test',
+    staging: 'staging',
+    prod: 'main'
+  };
 
-/**
- * Load codex configuration
- */
-async function loadConfig(): Promise<SyncConfig | null> {
-  const configPath = path.join(getConfigDir(), 'config.json');
-
-  try {
-    if (await fileExists(configPath)) {
-      const content = await readFileContent(configPath);
-      return JSON.parse(content) as SyncConfig;
-    }
-  } catch {
-    // Config load failed
-  }
-
-  return null;
+  return envMap[env] || env;
 }
 
 /**
@@ -93,49 +85,94 @@ function shouldExclude(repoName: string, excludePatterns: string[]): boolean {
 }
 
 /**
- * Get environment branch mapping
- */
-function getEnvironmentBranch(config: SyncConfig, env: string): string {
-  const envMap = config.sync?.environments || {
-    dev: 'develop',
-    test: 'test',
-    staging: 'staging',
-    prod: 'main'
-  };
-
-  return envMap[env] || env;
-}
-
-/**
- * Sync a single repository (simulated)
+ * Sync a single repository
  */
 async function syncRepository(
   repo: RepoInfo,
-  config: SyncConfig,
-  targetBranch: string,
-  direction: string
+  config: any,
+  direction: SyncDirection,
+  syncOptions: SyncOptions
 ): Promise<OrgSyncResult> {
+  const startTime = Date.now();
+
   try {
-    // In a full implementation, this would:
-    // 1. Clone or update local copy of repo
-    // 2. Run sync operations
-    // 3. Commit and push changes
+    // Note: In a real implementation, this would:
+    // 1. Clone or update local copy of repo to a temp directory
+    // 2. Create SyncManager for that directory
+    // 3. Execute sync plan
+    // 4. Commit and push changes if direction includes 'to-codex'
 
-    // Simulate sync with small delay
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // For now, we'll demonstrate the SDK integration pattern
+    // Assuming repo is already cloned to a local directory
+    const repoDir = path.join(process.cwd(), '..', repo.name);
 
-    // Simulate random items synced (1-5)
-    const itemsSynced = Math.floor(Math.random() * 5) + 1;
+    // Create LocalStorage for this repo
+    const localStorage = createLocalStorage({
+      baseDir: repoDir
+    });
+
+    // Create SyncManager
+    const syncManager = createSyncManager({
+      localStorage,
+      config: config.sync,
+      manifestPath: path.join(repoDir, '.fractary', '.codex-sync-manifest.json')
+    });
+
+    // Get include patterns from config
+    const includePatterns = config.sync?.include || [
+      'docs/**/*.md',
+      'specs/**/*.md',
+      '.fractary/standards/**',
+      '.fractary/templates/**'
+    ];
+
+    // List files in repo
+    const allFiles = await syncManager.listLocalFiles(repoDir);
+
+    // Filter by include patterns
+    const targetFiles = allFiles.filter(file => {
+      for (const pattern of includePatterns) {
+        const regex = new RegExp('^' + pattern.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*') + '$');
+        if (regex.test(file.path)) {
+          return true;
+        }
+      }
+      return false;
+    });
+
+    // Create and execute sync plan
+    const plan = await syncManager.createPlan(
+      config.organization,
+      repo.name,
+      repoDir,
+      targetFiles,
+      syncOptions
+    );
+
+    if (plan.totalFiles === 0) {
+      return {
+        repo: repo.name,
+        status: 'skipped',
+        filesSynced: 0,
+        duration: Date.now() - startTime
+      };
+    }
+
+    const result = await syncManager.executePlan(plan, syncOptions);
 
     return {
       repo: repo.name,
-      status: 'success',
-      itemsSynced
+      status: result.success ? 'success' : 'error',
+      filesSynced: result.synced,
+      duration: Date.now() - startTime,
+      error: result.success ? undefined : `${result.failed} files failed`
     };
+
   } catch (error: any) {
     return {
       repo: repo.name,
       status: 'error',
+      duration: Date.now() - startTime,
       error: error.message
     };
   }
@@ -154,15 +191,27 @@ export function syncOrgCommand(): Command {
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       try {
-        // Load config
-        const config = await loadConfig();
+        // Load YAML config
+        const configPath = path.join(process.cwd(), '.fractary', 'codex.yaml');
+        let config;
 
-        if (!config) {
+        try {
+          config = await readYamlConfig(configPath);
+        } catch (error) {
           console.error(chalk.red('Error:'), 'Codex not initialized.');
           console.log(chalk.dim('Run "fractary codex init" first.'));
           process.exit(1);
         }
 
+        // Validate direction
+        const validDirections: SyncDirection[] = ['to-codex', 'from-codex', 'bidirectional'];
+        if (!validDirections.includes(options.direction as SyncDirection)) {
+          console.error(chalk.red('Error:'), `Invalid direction: ${options.direction}`);
+          console.log(chalk.dim('Valid options: to-codex, from-codex, bidirectional'));
+          process.exit(1);
+        }
+
+        const direction = options.direction as SyncDirection;
         const org = config.organization;
         const targetBranch = getEnvironmentBranch(config, options.env);
 
@@ -176,7 +225,7 @@ export function syncOrgCommand(): Command {
           console.log(chalk.bold('Organization Sync\n'));
           console.log(`  Organization: ${chalk.cyan(org)}`);
           console.log(`  Environment:  ${chalk.cyan(options.env)} (${targetBranch})`);
-          console.log(`  Direction:    ${chalk.cyan(options.direction)}`);
+          console.log(`  Direction:    ${chalk.cyan(direction)}`);
           console.log(`  Parallelism:  ${chalk.cyan(options.parallel.toString())}`);
           if (excludePatterns.length > 0) {
             console.log(`  Excluding:    ${chalk.dim(excludePatterns.join(', '))}`);
@@ -212,7 +261,7 @@ export function syncOrgCommand(): Command {
               organization: org,
               environment: options.env,
               branch: targetBranch,
-              direction: options.direction,
+              direction,
               dryRun: true,
               repos: {
                 total: repos.length,
@@ -247,12 +296,17 @@ export function syncOrgCommand(): Command {
         }
 
         const results: OrgSyncResult[] = [];
+        const syncOptions: SyncOptions = {
+          direction,
+          dryRun: false,
+          force: false
+        };
 
         // Process in parallel batches
         for (let i = 0; i < eligibleRepos.length; i += options.parallel) {
           const batch = eligibleRepos.slice(i, i + options.parallel);
           const batchResults = await Promise.all(
-            batch.map(repo => syncRepository(repo, config, targetBranch, options.direction))
+            batch.map(repo => syncRepository(repo, config, direction, syncOptions))
           );
 
           for (const result of batchResults) {
@@ -263,7 +317,13 @@ export function syncOrgCommand(): Command {
                 console.log(
                   chalk.green('  ✓'),
                   result.repo,
-                  chalk.dim(`(${result.itemsSynced} items)`)
+                  chalk.dim(`(${result.filesSynced} files in ${result.duration}ms)`)
+                );
+              } else if (result.status === 'skipped') {
+                console.log(
+                  chalk.dim('  -'),
+                  result.repo,
+                  chalk.dim('(no files to sync)')
                 );
               } else if (result.status === 'error') {
                 console.log(
@@ -278,26 +338,31 @@ export function syncOrgCommand(): Command {
 
         // Summary
         const successful = results.filter(r => r.status === 'success');
+        const skipped = results.filter(r => r.status === 'skipped');
         const failed = results.filter(r => r.status === 'error');
-        const totalItems = successful.reduce((sum, r) => sum + (r.itemsSynced || 0), 0);
+        const totalFiles = successful.reduce((sum, r) => sum + (r.filesSynced || 0), 0);
 
         if (options.json) {
           console.log(JSON.stringify({
             organization: org,
             environment: options.env,
             branch: targetBranch,
-            direction: options.direction,
+            direction,
             results: {
               total: results.length,
               successful: successful.length,
+              skipped: skipped.length,
               failed: failed.length,
-              itemsSynced: totalItems,
+              filesSynced: totalFiles,
               details: results
             }
           }, null, 2));
         } else {
           console.log('');
-          console.log(chalk.green(`✓ Synced ${successful.length}/${results.length} repos (${totalItems} items)`));
+          console.log(chalk.green(`✓ Synced ${successful.length}/${results.length} repos (${totalFiles} files)`));
+          if (skipped.length > 0) {
+            console.log(chalk.dim(`  Skipped ${skipped.length} repos (no changes)`));
+          }
           if (failed.length > 0) {
             console.log(chalk.red(`✗ ${failed.length} repos failed`));
           }

@@ -1,8 +1,13 @@
 "use strict";
 /**
- * Sync project command
+ * Sync project command (v3.0)
  *
- * Synchronizes a single project with the codex repository
+ * Synchronizes a single project with the codex repository using SDK SyncManager:
+ * - Multi-directional sync (to-codex, from-codex, bidirectional)
+ * - Manifest tracking for sync state
+ * - Conflict detection and resolution
+ * - Pattern-based file filtering
+ * - Dry-run mode
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -45,47 +50,8 @@ exports.syncProjectCommand = syncProjectCommand;
 const commander_1 = require("commander");
 const chalk_1 = __importDefault(require("chalk"));
 const path = __importStar(require("path"));
-const child_process_1 = require("child_process");
-const file_scanner_1 = require("../../utils/file-scanner");
-/**
- * Get config directory path
- */
-function getConfigDir() {
-    return path.join(process.cwd(), '.fractary', 'plugins', 'codex');
-}
-/**
- * Load codex configuration
- */
-async function loadConfig() {
-    const configPath = path.join(getConfigDir(), 'config.json');
-    try {
-        if (await (0, file_scanner_1.fileExists)(configPath)) {
-            const content = await (0, file_scanner_1.readFileContent)(configPath);
-            return JSON.parse(content);
-        }
-    }
-    catch {
-        // Config load failed
-    }
-    return null;
-}
-/**
- * Detect current project name from git remote or directory
- */
-function detectProjectName() {
-    try {
-        const remoteUrl = (0, child_process_1.execSync)('git remote get-url origin', { encoding: 'utf-8' }).trim();
-        const match = remoteUrl.match(/[:/]([^/]+)\/([^/.]+)(\.git)?$/);
-        if (match) {
-            return match[2];
-        }
-    }
-    catch {
-        // Git not available
-    }
-    // Fallback to directory name
-    return path.basename(process.cwd());
-}
+const codex_1 = require("@fractary/codex");
+const migrate_config_1 = require("../../migrate-config");
 /**
  * Get environment branch mapping
  */
@@ -99,60 +65,22 @@ function getEnvironmentBranch(config, env) {
     return envMap[env] || env;
 }
 /**
- * Generate sync plan
+ * Format bytes to human-readable size
  */
-async function generateSyncPlan(projectName, config, direction) {
-    const plan = [];
-    // Default sync patterns
-    const patterns = config.sync?.patterns || [
-        'docs/**/*.md',
-        'specs/**/*.md',
-        '.fractary/standards/**',
-        '.fractary/templates/**'
-    ];
-    // Simulate finding files that match patterns
-    for (const pattern of patterns) {
-        const basePath = pattern.replace(/\*\*?\/?\*?\.?\w*$/, '').replace(/\/$/, '');
-        if (direction === 'to-codex' || direction === 'bidirectional') {
-            plan.push({
-                path: `${basePath}/`,
-                action: 'copy',
-                direction: 'to-codex',
-                reason: `Match pattern: ${pattern}`
-            });
-        }
-        if (direction === 'from-codex' || direction === 'bidirectional') {
-            plan.push({
-                path: `codex://${config.organization}/codex/${basePath}/`,
-                action: 'copy',
-                direction: 'from-codex',
-                reason: `Match pattern: ${pattern}`
-            });
-        }
-    }
-    return plan;
+function formatBytes(bytes) {
+    if (bytes < 1024)
+        return `${bytes} B`;
+    if (bytes < 1024 * 1024)
+        return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 /**
- * Execute sync operation
+ * Format duration in milliseconds
  */
-async function executeSync(plan, config, targetBranch) {
-    let success = 0;
-    let errors = 0;
-    for (const item of plan) {
-        try {
-            // In a full implementation, this would:
-            // 1. For to-codex: Copy local files to codex repo
-            // 2. For from-codex: Fetch files from codex repo to local
-            // For now, simulate the operation
-            console.log(chalk_1.default.green('  ✓'), chalk_1.default.dim(item.direction === 'to-codex' ? '→' : '←'), item.path);
-            success++;
-        }
-        catch (err) {
-            console.log(chalk_1.default.red('  ✗'), chalk_1.default.dim(item.direction === 'to-codex' ? '→' : '←'), item.path, chalk_1.default.red(`(${err.message})`));
-            errors++;
-        }
-    }
-    return { success, errors };
+function formatDuration(ms) {
+    if (ms < 1000)
+        return `${ms}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
 }
 function syncProjectCommand() {
     const cmd = new commander_1.Command('project');
@@ -162,18 +90,29 @@ function syncProjectCommand() {
         .option('--env <env>', 'Target environment (dev/test/staging/prod)', 'prod')
         .option('--dry-run', 'Show what would sync without executing')
         .option('--direction <dir>', 'Sync direction (to-codex/from-codex/bidirectional)', 'bidirectional')
+        .option('--include <pattern>', 'Include files matching pattern (can be used multiple times)', (val, prev) => prev.concat([val]), [])
+        .option('--exclude <pattern>', 'Exclude files matching pattern (can be used multiple times)', (val, prev) => prev.concat([val]), [])
+        .option('--force', 'Force sync without checking timestamps')
         .option('--json', 'Output as JSON')
         .action(async (name, options) => {
         try {
-            // Load config
-            const config = await loadConfig();
-            if (!config) {
+            // Load YAML config
+            const configPath = path.join(process.cwd(), '.fractary', 'codex.yaml');
+            let config;
+            try {
+                config = await (0, migrate_config_1.readYamlConfig)(configPath);
+            }
+            catch (error) {
                 console.error(chalk_1.default.red('Error:'), 'Codex not initialized.');
                 console.log(chalk_1.default.dim('Run "fractary codex init" first.'));
                 process.exit(1);
             }
             // Determine project name
-            const projectName = name || detectProjectName();
+            let projectName = name;
+            if (!projectName) {
+                const detected = (0, codex_1.detectCurrentProject)();
+                projectName = detected.project || null;
+            }
             if (!projectName) {
                 console.error(chalk_1.default.red('Error:'), 'Could not determine project name.');
                 console.log(chalk_1.default.dim('Provide project name as argument or run from a git repository.'));
@@ -188,11 +127,67 @@ function syncProjectCommand() {
             }
             const direction = options.direction;
             const targetBranch = getEnvironmentBranch(config, options.env);
-            // Generate sync plan
-            const plan = await generateSyncPlan(projectName, config, direction);
-            if (plan.length === 0) {
+            // Create LocalStorage instance
+            const localStorage = (0, codex_1.createLocalStorage)({
+                baseDir: process.cwd()
+            });
+            // Create SyncManager
+            const syncManager = (0, codex_1.createSyncManager)({
+                localStorage,
+                config: config.sync,
+                manifestPath: path.join(process.cwd(), '.fractary', '.codex-sync-manifest.json')
+            });
+            // Get default include patterns from config
+            const defaultPatterns = config.sync?.include || [
+                'docs/**/*.md',
+                'specs/**/*.md',
+                '.fractary/standards/**',
+                '.fractary/templates/**'
+            ];
+            // Combine config patterns with CLI options
+            const includePatterns = options.include.length > 0 ? options.include : defaultPatterns;
+            const excludePatterns = [
+                ...(config.sync?.exclude || []),
+                ...options.exclude
+            ];
+            // Scan local files
+            const sourceDir = process.cwd();
+            const allFiles = await syncManager.listLocalFiles(sourceDir);
+            // Filter files by patterns (simple implementation)
+            const targetFiles = allFiles.filter(file => {
+                // Check exclude patterns first
+                for (const pattern of excludePatterns) {
+                    const regex = new RegExp('^' + pattern.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*') + '$');
+                    if (regex.test(file.path)) {
+                        return false;
+                    }
+                }
+                // Check include patterns
+                for (const pattern of includePatterns) {
+                    const regex = new RegExp('^' + pattern.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*') + '$');
+                    if (regex.test(file.path)) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+            // Create sync plan
+            const syncOptions = {
+                direction,
+                dryRun: options.dryRun,
+                force: options.force,
+                include: includePatterns,
+                exclude: excludePatterns
+            };
+            const plan = await syncManager.createPlan(config.organization, projectName, sourceDir, targetFiles, syncOptions);
+            if (plan.totalFiles === 0) {
                 if (options.json) {
-                    console.log(JSON.stringify({ project: projectName, items: [], synced: 0 }));
+                    console.log(JSON.stringify({
+                        project: projectName,
+                        organization: config.organization,
+                        files: [],
+                        synced: 0
+                    }, null, 2));
                 }
                 else {
                     console.log(chalk_1.default.yellow('No files to sync.'));
@@ -207,10 +202,17 @@ function syncProjectCommand() {
                     branch: targetBranch,
                     direction,
                     dryRun: options.dryRun || false,
-                    items: plan.map(item => ({
-                        path: item.path,
-                        action: item.action,
-                        direction: item.direction
+                    plan: {
+                        totalFiles: plan.totalFiles,
+                        totalBytes: plan.totalBytes,
+                        estimatedTime: plan.estimatedTime,
+                        conflicts: plan.conflicts.length,
+                        skipped: plan.skipped.length
+                    },
+                    files: plan.files.map(f => ({
+                        path: f.path,
+                        operation: f.operation,
+                        size: f.size
                     }))
                 };
                 if (options.dryRun) {
@@ -218,12 +220,16 @@ function syncProjectCommand() {
                     return;
                 }
                 // Execute and add results
-                const results = await executeSync(plan, config, targetBranch);
+                const result = await syncManager.executePlan(plan, syncOptions);
                 console.log(JSON.stringify({
                     ...output,
-                    results: {
-                        success: results.success,
-                        errors: results.errors
+                    result: {
+                        success: result.success,
+                        synced: result.synced,
+                        failed: result.failed,
+                        skipped: result.skipped,
+                        duration: result.duration,
+                        errors: result.errors
                     }
                 }, null, 2));
                 return;
@@ -234,25 +240,75 @@ function syncProjectCommand() {
             console.log(`  Organization: ${chalk_1.default.cyan(config.organization)}`);
             console.log(`  Environment:  ${chalk_1.default.cyan(options.env)} (${targetBranch})`);
             console.log(`  Direction:    ${chalk_1.default.cyan(direction)}`);
+            console.log(`  Files:        ${chalk_1.default.cyan(plan.totalFiles.toString())}`);
+            console.log(`  Total size:   ${chalk_1.default.cyan(formatBytes(plan.totalBytes))}`);
+            if (plan.estimatedTime) {
+                console.log(`  Est. time:    ${chalk_1.default.dim(formatDuration(plan.estimatedTime))}`);
+            }
             console.log('');
+            if (plan.conflicts.length > 0) {
+                console.log(chalk_1.default.yellow(`⚠ ${plan.conflicts.length} conflicts detected:`));
+                for (const conflict of plan.conflicts.slice(0, 5)) {
+                    console.log(chalk_1.default.yellow(`  • ${conflict.path}`));
+                }
+                if (plan.conflicts.length > 5) {
+                    console.log(chalk_1.default.dim(`  ... and ${plan.conflicts.length - 5} more`));
+                }
+                console.log('');
+            }
+            if (plan.skipped.length > 0) {
+                console.log(chalk_1.default.dim(`${plan.skipped.length} files skipped (no changes)`));
+                console.log('');
+            }
             if (options.dryRun) {
                 console.log(chalk_1.default.blue('Dry run - would sync:\n'));
-                for (const item of plan) {
-                    const arrow = item.direction === 'to-codex' ? '→ codex' : '← codex';
-                    console.log(chalk_1.default.dim(`  ${arrow}  ${item.path}`));
+                const filesToShow = plan.files.slice(0, 10);
+                for (const file of filesToShow) {
+                    const arrow = direction === 'to-codex' ? '→' : direction === 'from-codex' ? '←' : '↔';
+                    const opColor = file.operation === 'create' ? chalk_1.default.green :
+                        file.operation === 'update' ? chalk_1.default.yellow :
+                            chalk_1.default.dim;
+                    console.log(chalk_1.default.dim(`  ${arrow}`), opColor(file.operation.padEnd(7)), file.path, chalk_1.default.dim(`(${formatBytes(file.size || 0)})`));
                 }
-                console.log(chalk_1.default.dim(`\nTotal: ${plan.length} items`));
+                if (plan.files.length > 10) {
+                    console.log(chalk_1.default.dim(`  ... and ${plan.files.length - 10} more files`));
+                }
+                console.log(chalk_1.default.dim(`\nTotal: ${plan.totalFiles} files (${formatBytes(plan.totalBytes)})`));
                 console.log(chalk_1.default.dim('Run without --dry-run to execute sync.'));
                 return;
             }
             // Execute sync
             console.log(chalk_1.default.blue('Syncing...\n'));
-            const results = await executeSync(plan, config, targetBranch);
+            const startTime = Date.now();
+            const result = await syncManager.executePlan(plan, syncOptions);
+            const duration = Date.now() - startTime;
             // Summary
             console.log('');
-            console.log(chalk_1.default.green(`✓ Synced ${results.success} items`));
-            if (results.errors > 0) {
-                console.log(chalk_1.default.red(`✗ ${results.errors} errors`));
+            if (result.success) {
+                console.log(chalk_1.default.green(`✓ Sync completed successfully`));
+                console.log(chalk_1.default.dim(`  Synced: ${result.synced} files`));
+                if (result.skipped > 0) {
+                    console.log(chalk_1.default.dim(`  Skipped: ${result.skipped} files`));
+                }
+                console.log(chalk_1.default.dim(`  Duration: ${formatDuration(duration)}`));
+            }
+            else {
+                console.log(chalk_1.default.yellow(`⚠ Sync completed with errors`));
+                console.log(chalk_1.default.green(`  Synced: ${result.synced} files`));
+                console.log(chalk_1.default.red(`  Failed: ${result.failed} files`));
+                if (result.skipped > 0) {
+                    console.log(chalk_1.default.dim(`  Skipped: ${result.skipped} files`));
+                }
+                if (result.errors.length > 0) {
+                    console.log('');
+                    console.log(chalk_1.default.red('Errors:'));
+                    for (const error of result.errors.slice(0, 5)) {
+                        console.log(chalk_1.default.red(`  • ${error.path}: ${error.error}`));
+                    }
+                    if (result.errors.length > 5) {
+                        console.log(chalk_1.default.dim(`  ... and ${result.errors.length - 5} more errors`));
+                    }
+                }
             }
         }
         catch (error) {
