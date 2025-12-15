@@ -162,6 +162,11 @@ fractary codex migrate
         index.json        # Cache index
 ```
 
+**Learn More:**
+- [Usage Guide](docs/codex/usage-guide.md) - Complete command reference and examples
+- [Integration Guide](docs/codex/integration-guide.md) - Integrate codex into projects and CI/CD
+- [Migration Guide](docs/codex/migration-guide.md) - Migrate from v2.0 to v3.0
+
 ### Forge (Asset Management & Scaffolding)
 
 Forge provides project scaffolding and ongoing asset management for maintaining consistency across projects.
@@ -328,6 +333,11 @@ Common functionality shared across all tools reduces duplication.
 - [Overlay System](docs/faber/overlays.md)
 - [Binding System](docs/faber/bindings.md)
 - [Examples](docs/faber/examples.md)
+
+### Codex Documentation
+- [Usage Guide](docs/codex/usage-guide.md) - Complete command reference and workflow examples
+- [Integration Guide](docs/codex/integration-guide.md) - Integrate into projects, plugins, and CI/CD
+- [Migration Guide](docs/codex/migration-guide.md) - Migrate from v2.0 to v3.0
 
 ### SDK Integration
 - [SDK Integration Guide](docs/sdk-integration-guide.md) - How to use CLI SDK in your projects

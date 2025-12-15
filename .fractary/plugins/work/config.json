@@ -1,6 +1,9 @@
 {
   "version": "2.1.0",
   "platform": "github",
+  "handlers": {
+    "work-tracker": "handler-work-tracker-github"
+  },
   "github_config": {
     "owner": "fractary",
     "repo": "cli",

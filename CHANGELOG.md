@@ -5,6 +5,19 @@ All notable changes to the Fractary CLI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Codex Documentation Suite**: Comprehensive documentation for Codex v3.0 CLI integration
+  - [Usage Guide](docs/codex/usage-guide.md) - Complete command reference with examples and workflows
+  - [Integration Guide](docs/codex/integration-guide.md) - Integration patterns for external projects, Claude Code plugins, and CI/CD pipelines
+  - [Migration Guide](docs/codex/migration-guide.md) - Complete v2.0 to v3.0 migration guide with rollback plan
+- **Enhanced README**: Added Codex documentation links in Quick Start and Documentation sections
+
+### Changed
+- Updated documentation structure to better support external integrations
+- Improved clarity for fractary/claude-plugins and other downstream consumers
+
 ## [0.3.0] - 2025-12-12
 
 ### Added
