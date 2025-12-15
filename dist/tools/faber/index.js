@@ -65,6 +65,7 @@ const work_1 = require("./commands/work");
 const repo_1 = require("./commands/repo");
 const spec_1 = require("./commands/spec");
 const logs_1 = require("./commands/logs");
+const init_1 = require("./commands/init");
 const workflow_1 = require("./commands/workflow");
 /**
  * Create and configure the faber command
@@ -75,7 +76,7 @@ function createFaberCommand() {
         .description('FABER development toolkit (workflow, work, repo, spec, logs)')
         .version('0.2.0');
     // Workflow commands (top-level)
-    faber.addCommand(createInitCommand());
+    faber.addCommand((0, init_1.initCommand)());
     faber.addCommand((0, workflow_1.createRunCommand)());
     faber.addCommand((0, workflow_1.createStatusCommand)());
     faber.addCommand((0, workflow_1.createResumeCommand)());

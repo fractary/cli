@@ -8,7 +8,8 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import * as path from 'path';
 import * as fs from 'fs/promises';
-import * as yaml from 'js-yaml';
+// Dynamic import to avoid loading js-yaml at module time
+// import * as yaml from 'js-yaml';
 import { getClient } from '../get-client';
 
 interface AgentCreateOptions {
@@ -32,11 +33,14 @@ function validateAgentName(name: string): boolean {
 /**
  * Generate agent YAML template
  */
-function generateAgentYAML(
+async function generateAgentYAML(
   name: string,
   options: AgentCreateOptions,
   config: any
-): string {
+): Promise<string> {
+  // Dynamic import to avoid loading js-yaml at module time
+  const yaml = await import('js-yaml');
+
   const defaults = config.defaults.agent;
 
   const agentDef: any = {
@@ -111,7 +115,7 @@ export function agentCreateCommand(): Command {
         }
 
         // Generate YAML
-        const yamlContent = generateAgentYAML(name, options, config);
+        const yamlContent = await generateAgentYAML(name, options, config);
 
         // Write file
         await fs.writeFile(agentFile, yamlContent, 'utf-8');

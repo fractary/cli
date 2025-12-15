@@ -13,7 +13,6 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import * as path from 'path';
 import * as fs from 'fs/promises';
-import { resolveOrganization } from '@fractary/codex';
 import { getDefaultYamlConfig, writeYamlConfig } from '../migrate-config';
 
 /**
@@ -67,8 +66,9 @@ export function initCommand(): Command {
         }
 
         if (!org) {
-          // Try SDK's resolveOrganization
+          // Try SDK's resolveOrganization (dynamic import)
           try {
+            const { resolveOrganization } = await import('@fractary/codex');
             org = resolveOrganization({
               repoName: path.basename(process.cwd())
             });

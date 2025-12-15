@@ -51,7 +51,8 @@ const commander_1 = require("commander");
 const chalk_1 = __importDefault(require("chalk"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs/promises"));
-const migrate_config_1 = require("../migrate-config");
+// Dynamic import to avoid loading js-yaml at module time
+// import { createDefaultConfig, configExists } from '../migrate-config';
 /**
  * Extract organization from git remote URL
  */
@@ -88,6 +89,8 @@ function initCommand() {
         .option('--force', 'Overwrite existing configuration')
         .action(async (options) => {
         try {
+            // Dynamic import to avoid loading js-yaml at module time
+            const { createDefaultConfig, configExists } = await Promise.resolve().then(() => __importStar(require('../migrate-config')));
             console.log(chalk_1.default.blue('Initializing Forge configuration...\n'));
             // Resolve organization
             let org = options.org;
@@ -107,7 +110,7 @@ function initCommand() {
             // Config paths
             const configDir = path.join(process.cwd(), '.fractary/forge');
             const configPath = path.join(configDir, 'config.yaml');
-            const exists = await (0, migrate_config_1.configExists)(configPath);
+            const exists = await configExists(configPath);
             if (exists && !options.force) {
                 console.log(chalk_1.default.yellow('⚠ Configuration already exists at .fractary/forge/config.yaml'));
                 console.log(chalk_1.default.dim('Use --force to overwrite'));
@@ -130,7 +133,7 @@ function initCommand() {
             }
             // Create configuration
             console.log(chalk_1.default.dim('\nGenerating configuration...'));
-            await (0, migrate_config_1.createDefaultConfig)(configPath, org);
+            await createDefaultConfig(configPath, org);
             console.log(chalk_1.default.green('✓'), chalk_1.default.dim('config.yaml created'));
             // Success message
             console.log(chalk_1.default.green('\n✨ Forge initialized successfully!\n'));

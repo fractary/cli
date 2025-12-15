@@ -40,8 +40,6 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ForgeClient = void 0;
-const forge_1 = require("@fractary/forge");
-const migrate_config_1 = require("./migrate-config");
 const path = __importStar(require("path"));
 const os = __importStar(require("os"));
 /**
@@ -56,30 +54,27 @@ class ForgeClient {
     /**
      * Private constructor - use ForgeClient.create() instead
      */
-    constructor(resolver, config, projectRoot) {
+    constructor(resolver, agentAPI, toolAPI, config, projectRoot) {
         this.resolver = resolver;
+        this.agentAPI = agentAPI;
+        this.toolAPI = toolAPI;
         this.config = config;
         this.organization = config.organization;
         this.projectRoot = projectRoot;
-        // Initialize SDK managers with resolver config
-        const sdkConfig = {
-            definitions: {
-                registry: ForgeClient.buildResolverConfig(config, projectRoot),
-            },
-        };
-        this.agentAPI = new forge_1.AgentAPI(sdkConfig);
-        this.toolAPI = new forge_1.ToolAPI(sdkConfig);
     }
     /**
      * Create ForgeClient instance
      */
     static async create(options) {
+        // Dynamic imports to avoid loading SDK and js-yaml at module time
+        const { DefinitionResolver, AgentAPI, ToolAPI } = await Promise.resolve().then(() => __importStar(require('@fractary/forge')));
+        const { readYamlConfig } = await Promise.resolve().then(() => __importStar(require('./migrate-config')));
         const projectRoot = options?.projectRoot || process.cwd();
         const configPath = path.join(projectRoot, '.fractary/forge/config.yaml');
         // Load configuration
         let config;
         try {
-            config = await (0, migrate_config_1.readYamlConfig)(configPath);
+            config = await readYamlConfig(configPath);
         }
         catch (error) {
             throw new Error(`Failed to load forge configuration. Run "fractary forge init" to create one.\nError: ${error.message}`);
@@ -91,8 +86,16 @@ class ForgeClient {
         // Build resolver config
         const resolverConfig = ForgeClient.buildResolverConfig(config, projectRoot);
         // Create resolver
-        const resolver = new forge_1.DefinitionResolver(resolverConfig);
-        return new ForgeClient(resolver, config, projectRoot);
+        const resolver = new DefinitionResolver(resolverConfig);
+        // Initialize SDK managers with resolver config
+        const sdkConfig = {
+            definitions: {
+                registry: resolverConfig,
+            },
+        };
+        const agentAPI = new AgentAPI(sdkConfig);
+        const toolAPI = new ToolAPI(sdkConfig);
+        return new ForgeClient(resolver, agentAPI, toolAPI, config, projectRoot);
     }
     /**
      * Build resolver configuration from YAML config

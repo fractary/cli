@@ -28,14 +28,8 @@ import { createWorkCommand } from './commands/work';
 import { createRepoCommand } from './commands/repo';
 import { createSpecCommand } from './commands/spec';
 import { createLogsCommand } from './commands/logs';
-import {
-  createRunCommand,
-  createStatusCommand,
-  createResumeCommand,
-  createPauseCommand,
-  createRecoverCommand,
-  createCleanupCommand,
-} from './commands/workflow';
+import { initCommand } from './commands/init';
+import { createRunCommand, createStatusCommand, createResumeCommand, createPauseCommand, createRecoverCommand, createCleanupCommand } from './commands/workflow';
 
 /**
  * Create and configure the faber command
@@ -48,7 +42,7 @@ export function createFaberCommand(): Command {
     .version('0.2.0');
 
   // Workflow commands (top-level)
-  faber.addCommand(createInitCommand());
+  faber.addCommand(initCommand());
   faber.addCommand(createRunCommand());
   faber.addCommand(createStatusCommand());
   faber.addCommand(createResumeCommand());

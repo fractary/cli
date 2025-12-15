@@ -1,1 +1,1 @@
-{"version":3,"file":"fetch.d.ts","sourceRoot":"","sources":["../../../../src/tools/codex/commands/fetch.ts"],"names":[],"mappings":"AAAA;;;;;;;;GAQG;AAEH,OAAO,EAAE,OAAO,EAAE,MAAM,WAAW,CAAC;AAcpC,wBAAgB,YAAY,IAAI,OAAO,CAsFtC"}
+{"version":3,"file":"fetch.d.ts","sourceRoot":"","sources":["../../../../src/tools/codex/commands/fetch.ts"],"names":[],"mappings":"AAAA;;;;;;;;GAQG;AAEH,OAAO,EAAE,OAAO,EAAE,MAAM,WAAW,CAAC;AAapC,wBAAgB,YAAY,IAAI,OAAO,CAyFtC"}

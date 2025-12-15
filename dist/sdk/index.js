@@ -5,7 +5,7 @@
  * Provides unified access to @fractary/faber SDK with lazy loading and error handling.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.FaberWorkflow = exports.StateManager = exports.LogManager = exports.SpecManager = exports.RepoManager = exports.WorkManager = exports.mergeWithDefaults = exports.getDefaultWorkflowConfig = exports.loadFaberConfig = exports.loadStateConfig = exports.loadLogConfig = exports.loadSpecConfig = exports.loadRepoConfig = exports.loadWorkConfig = exports.SDKNotAvailableError = exports.isFaberAvailable = exports.clearInstances = exports.getWorkflow = exports.getStateManager = exports.getLogManager = exports.getSpecManager = exports.getRepoManager = exports.getWorkManager = void 0;
+exports.mergeWithDefaults = exports.getDefaultWorkflowConfig = exports.loadFaberConfig = exports.loadStateConfig = exports.loadLogConfig = exports.loadSpecConfig = exports.loadRepoConfig = exports.loadWorkConfig = exports.SDKNotAvailableError = exports.isFaberAvailable = exports.clearInstances = exports.getWorkflow = exports.getStateManager = exports.getLogManager = exports.getSpecManager = exports.getRepoManager = exports.getWorkManager = void 0;
 // Factory functions
 var factory_1 = require("./factory");
 Object.defineProperty(exports, "getWorkManager", { enumerable: true, get: function () { return factory_1.getWorkManager; } });
@@ -26,12 +26,6 @@ Object.defineProperty(exports, "loadStateConfig", { enumerable: true, get: funct
 Object.defineProperty(exports, "loadFaberConfig", { enumerable: true, get: function () { return factory_1.loadFaberConfig; } });
 Object.defineProperty(exports, "getDefaultWorkflowConfig", { enumerable: true, get: function () { return factory_1.getDefaultWorkflowConfig; } });
 Object.defineProperty(exports, "mergeWithDefaults", { enumerable: true, get: function () { return factory_1.mergeWithDefaults; } });
-// Re-export manager classes for direct access if needed
-var faber_1 = require("@fractary/faber");
-Object.defineProperty(exports, "WorkManager", { enumerable: true, get: function () { return faber_1.WorkManager; } });
-Object.defineProperty(exports, "RepoManager", { enumerable: true, get: function () { return faber_1.RepoManager; } });
-Object.defineProperty(exports, "SpecManager", { enumerable: true, get: function () { return faber_1.SpecManager; } });
-Object.defineProperty(exports, "LogManager", { enumerable: true, get: function () { return faber_1.LogManager; } });
-Object.defineProperty(exports, "StateManager", { enumerable: true, get: function () { return faber_1.StateManager; } });
-Object.defineProperty(exports, "FaberWorkflow", { enumerable: true, get: function () { return faber_1.FaberWorkflow; } });
+// Note: Type re-exports are removed to prevent loading @fractary/faber at module load time.
+// If you need SDK types, import them directly from '@fractary/faber' where needed.
 //# sourceMappingURL=index.js.map

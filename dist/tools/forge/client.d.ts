@@ -4,7 +4,7 @@
  * Wraps AgentAPI, ToolAPI, DefinitionResolver, and other SDK managers
  * to provide a clean interface for CLI commands.
  */
-import { DefinitionResolver, type ResolvedAgent, type ResolvedTool, type AgentInfo, type ToolInfo } from '@fractary/forge';
+import type { DefinitionResolver, ResolvedAgent, ResolvedTool, AgentInfo, ToolInfo } from '@fractary/forge';
 import type { ForgeYamlConfig } from './config-types';
 export interface ForgeClientOptions {
     projectRoot?: string;

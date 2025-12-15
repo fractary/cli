@@ -5,17 +5,19 @@
  * to provide a clean interface for CLI commands.
  */
 
-import {
+// Type-only imports
+import type {
   DefinitionResolver,
   AgentAPI,
   ToolAPI,
-  type ResolvedAgent,
-  type ResolvedTool,
-  type AgentInfo,
-  type ToolInfo,
-  type RegistryConfig,
+  ResolvedAgent,
+  ResolvedTool,
+  AgentInfo,
+  ToolInfo,
+  RegistryConfig,
 } from '@fractary/forge';
-import { readYamlConfig } from './migrate-config';
+// Dynamic imports to avoid loading SDK and js-yaml at module time
+// import { readYamlConfig } from './migrate-config';
 import type { ForgeYamlConfig } from './config-types';
 import * as path from 'path';
 import * as os from 'os';
@@ -46,29 +48,27 @@ export class ForgeClient {
    */
   private constructor(
     resolver: DefinitionResolver,
+    agentAPI: AgentAPI,
+    toolAPI: ToolAPI,
     config: ForgeYamlConfig,
     projectRoot: string
   ) {
     this.resolver = resolver;
+    this.agentAPI = agentAPI;
+    this.toolAPI = toolAPI;
     this.config = config;
     this.organization = config.organization;
     this.projectRoot = projectRoot;
-
-    // Initialize SDK managers with resolver config
-    const sdkConfig = {
-      definitions: {
-        registry: ForgeClient.buildResolverConfig(config, projectRoot),
-      },
-    };
-
-    this.agentAPI = new AgentAPI(sdkConfig);
-    this.toolAPI = new ToolAPI(sdkConfig);
   }
 
   /**
    * Create ForgeClient instance
    */
   static async create(options?: ForgeClientOptions): Promise<ForgeClient> {
+    // Dynamic imports to avoid loading SDK and js-yaml at module time
+    const { DefinitionResolver, AgentAPI, ToolAPI } = await import('@fractary/forge');
+    const { readYamlConfig } = await import('./migrate-config');
+
     const projectRoot = options?.projectRoot || process.cwd();
     const configPath = path.join(projectRoot, '.fractary/forge/config.yaml');
 
@@ -93,7 +93,16 @@ export class ForgeClient {
     // Create resolver
     const resolver = new DefinitionResolver(resolverConfig);
 
-    return new ForgeClient(resolver, config, projectRoot);
+    // Initialize SDK managers with resolver config
+    const sdkConfig = {
+      definitions: {
+        registry: resolverConfig,
+      },
+    };
+    const agentAPI = new AgentAPI(sdkConfig);
+    const toolAPI = new ToolAPI(sdkConfig);
+
+    return new ForgeClient(resolver, agentAPI, toolAPI, config, projectRoot);
   }
 
   /**

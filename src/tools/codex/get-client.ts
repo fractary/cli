@@ -5,6 +5,9 @@
  * This ensures we only create one client instance across all command invocations,
  * avoiding repeated configuration loading and manager initialization.
  *
+ * Uses dynamic imports to avoid loading @fractary/codex SDK at module load time,
+ * which prevents CLI hangs when running simple commands like --help.
+ *
  * @example
  * ```typescript
  * import { getClient } from './get-client';
@@ -17,7 +20,8 @@
  * ```
  */
 
-import { CodexClient, type CodexClientOptions } from './client';
+// Import types only
+import type { CodexClient, CodexClientOptions } from './client';
 
 /**
  * Singleton instance
@@ -41,6 +45,8 @@ let clientInstance: CodexClient | null = null;
  */
 export async function getClient(options?: CodexClientOptions): Promise<CodexClient> {
   if (!clientInstance) {
+    // Dynamic import to avoid loading SDK at module time
+    const { CodexClient } = await import('./client');
     clientInstance = await CodexClient.create(options);
   }
   return clientInstance;

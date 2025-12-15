@@ -1,1 +1,1 @@
-{"version":3,"file":"project.d.ts","sourceRoot":"","sources":["../../../../../src/tools/codex/commands/sync/project.ts"],"names":[],"mappings":"AAAA;;;;;;;;;GASG;AAEH,OAAO,EAAE,OAAO,EAAE,MAAM,WAAW,CAAC;AA2CpC,wBAAgB,kBAAkB,IAAI,OAAO,CAmR5C"}
+{"version":3,"file":"project.d.ts","sourceRoot":"","sources":["../../../../../src/tools/codex/commands/sync/project.ts"],"names":[],"mappings":"AAAA;;;;;;;;;GASG;AAEH,OAAO,EAAE,OAAO,EAAE,MAAM,WAAW,CAAC;AAyCpC,wBAAgB,kBAAkB,IAAI,OAAO,CAsR5C"}
