@@ -8,7 +8,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createMergeCommand = exports.createForkCommand = exports.createCacheStatsCommand = exports.createCacheClearCommand = exports.createRegistryListCommand = exports.createRegistryRemoveCommand = exports.createRegistryAddCommand = exports.createUpdateCommand = exports.createLockCommand = exports.createSearchCommand = exports.createInfoCommand = exports.createListCommand = exports.createUninstallCommand = exports.createInstallCommand = void 0;
+exports.createWhoamiCommand = exports.createLogoutCommand = exports.createLoginCommand = exports.createMergeCommand = exports.createForkCommand = exports.createCacheStatsCommand = exports.createCacheClearCommand = exports.createRegistryListCommand = exports.createRegistryRemoveCommand = exports.createRegistryAddCommand = exports.createUpdateCommand = exports.createLockCommand = exports.createSearchCommand = exports.createInfoCommand = exports.createListCommand = exports.createUninstallCommand = exports.createInstallCommand = void 0;
 exports.createRegistryCommand = createRegistryCommand;
 exports.createCacheCommand = createCacheCommand;
 const commander_1 = require("commander");
@@ -44,6 +44,13 @@ var fork_1 = require("./fork");
 Object.defineProperty(exports, "createForkCommand", { enumerable: true, get: function () { return fork_1.createForkCommand; } });
 var merge_1 = require("./merge");
 Object.defineProperty(exports, "createMergeCommand", { enumerable: true, get: function () { return merge_1.createMergeCommand; } });
+// Authentication commands
+var login_1 = require("./login");
+Object.defineProperty(exports, "createLoginCommand", { enumerable: true, get: function () { return login_1.createLoginCommand; } });
+var logout_1 = require("./logout");
+Object.defineProperty(exports, "createLogoutCommand", { enumerable: true, get: function () { return logout_1.createLogoutCommand; } });
+var whoami_1 = require("./whoami");
+Object.defineProperty(exports, "createWhoamiCommand", { enumerable: true, get: function () { return whoami_1.createWhoamiCommand; } });
 // Default exports
 const install_2 = __importDefault(require("./install"));
 const uninstall_2 = __importDefault(require("./uninstall"));

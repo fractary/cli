@@ -28,6 +28,11 @@ export { createCacheStatsCommand } from './cache-stats';
 export { createForkCommand } from './fork';
 export { createMergeCommand } from './merge';
 
+// Authentication commands
+export { createLoginCommand } from './login';
+export { createLogoutCommand } from './logout';
+export { createWhoamiCommand } from './whoami';
+
 // Default exports
 import createInstallCommand from './install';
 import createUninstallCommand from './uninstall';
@@ -43,6 +48,9 @@ import createCacheClearCommand from './cache-clear';
 import createCacheStatsCommand from './cache-stats';
 import createForkCommand from './fork';
 import createMergeCommand from './merge';
+import createLoginCommand from './login';
+import createLogoutCommand from './logout';
+import createWhoamiCommand from './whoami';
 
 /**
  * Create parent registry command
