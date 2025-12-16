@@ -24,6 +24,10 @@ export { createRegistryListCommand } from './registry-list';
 export { createCacheClearCommand } from './cache-clear';
 export { createCacheStatsCommand } from './cache-stats';
 
+// Fork and merge commands
+export { createForkCommand } from './fork';
+export { createMergeCommand } from './merge';
+
 // Default exports
 import createInstallCommand from './install';
 import createUninstallCommand from './uninstall';
@@ -37,6 +41,8 @@ import createRegistryRemoveCommand from './registry-remove';
 import createRegistryListCommand from './registry-list';
 import createCacheClearCommand from './cache-clear';
 import createCacheStatsCommand from './cache-stats';
+import createForkCommand from './fork';
+import createMergeCommand from './merge';
 
 /**
  * Create parent registry command

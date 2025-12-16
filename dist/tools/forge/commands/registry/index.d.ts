@@ -16,6 +16,8 @@ export { createRegistryRemoveCommand } from './registry-remove';
 export { createRegistryListCommand } from './registry-list';
 export { createCacheClearCommand } from './cache-clear';
 export { createCacheStatsCommand } from './cache-stats';
+export { createForkCommand } from './fork';
+export { createMergeCommand } from './merge';
 import createInstallCommand from './install';
 import createUninstallCommand from './uninstall';
 import createListCommand from './list';

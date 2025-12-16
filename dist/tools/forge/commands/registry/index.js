@@ -8,7 +8,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createCacheStatsCommand = exports.createCacheClearCommand = exports.createRegistryListCommand = exports.createRegistryRemoveCommand = exports.createRegistryAddCommand = exports.createUpdateCommand = exports.createLockCommand = exports.createSearchCommand = exports.createInfoCommand = exports.createListCommand = exports.createUninstallCommand = exports.createInstallCommand = void 0;
+exports.createMergeCommand = exports.createForkCommand = exports.createCacheStatsCommand = exports.createCacheClearCommand = exports.createRegistryListCommand = exports.createRegistryRemoveCommand = exports.createRegistryAddCommand = exports.createUpdateCommand = exports.createLockCommand = exports.createSearchCommand = exports.createInfoCommand = exports.createListCommand = exports.createUninstallCommand = exports.createInstallCommand = void 0;
 exports.createRegistryCommand = createRegistryCommand;
 exports.createCacheCommand = createCacheCommand;
 const commander_1 = require("commander");
@@ -39,6 +39,11 @@ var cache_clear_1 = require("./cache-clear");
 Object.defineProperty(exports, "createCacheClearCommand", { enumerable: true, get: function () { return cache_clear_1.createCacheClearCommand; } });
 var cache_stats_1 = require("./cache-stats");
 Object.defineProperty(exports, "createCacheStatsCommand", { enumerable: true, get: function () { return cache_stats_1.createCacheStatsCommand; } });
+// Fork and merge commands
+var fork_1 = require("./fork");
+Object.defineProperty(exports, "createForkCommand", { enumerable: true, get: function () { return fork_1.createForkCommand; } });
+var merge_1 = require("./merge");
+Object.defineProperty(exports, "createMergeCommand", { enumerable: true, get: function () { return merge_1.createMergeCommand; } });
 // Default exports
 const install_2 = __importDefault(require("./install"));
 const uninstall_2 = __importDefault(require("./uninstall"));
