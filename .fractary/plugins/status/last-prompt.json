@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-12-15T14:20:38Z",
-  "prompt": "{\"session_id\":\"9861aac7-8a26-4a4b-aadd-01a8a2f0465e\",\"transcript_path\":\"/home/jmcwilliam/.claude/projects/-mnt-c-GitHub-fractary-cli/9861aac7-8a26-4a4b-aadd-01a8a2f0465e.jsonl\",\"cwd\":\"/mnt/c/GitHub/fractary/cli\",\"permission_mode\":\"bypassPermissions\",\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"did we bump the package version after these latest changes so we can publish to npm\"} ",
-  "prompt_short": "{\"session_id\":\"9861aac7-8a26-4a4b-aad..."
+  "timestamp": "2025-12-16T01:05:19Z",
+  "prompt": "{\"session_id\":\"76731a0f-cc18-4208-a5bd-2a7450e39003\",\"transcript_path\":\"/home/jmcwilliam/.claude/projects/-mnt-c-GitHub-fractary-cli/76731a0f-cc18-4208-a5bd-2a7450e39003.jsonl\",\"cwd\":\"/mnt/c/GitHub/fractary/cli\",\"permission_mode\":\"bypassPermissions\",\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"yes\"} ",
+  "prompt_short": "{\"session_id\":\"76731a0f-cc18-4208-a5b..."
 }
