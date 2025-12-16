@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-12-16T00:03:41Z",
-  "prompt": "{\"session_id\":\"76731a0f-cc18-4208-a5bd-2a7450e39003\",\"transcript_path\":\"/home/jmcwilliam/.claude/projects/-mnt-c-GitHub-fractary-cli/76731a0f-cc18-4208-a5bd-2a7450e39003.jsonl\",\"cwd\":\"/mnt/c/GitHub/fractary/cli\",\"permission_mode\":\"bypassPermissions\",\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"<bash-notification>\\n<shell-id>b9dc67c</shell-id>\\n<output-file>/tmp/claude/tasks/b9dc67c.output</output-file>\\n<status>completed</status>\\n<summary>Background command \\\"Locate the @fractary/forge SDK directory\\\" completed (exit code 0).</summary>\\nRead the output file to retrieve the output.\\n</bash-notification>\"} ",
+  "timestamp": "2025-12-16T00:08:05Z",
+  "prompt": "{\"session_id\":\"76731a0f-cc18-4208-a5bd-2a7450e39003\",\"transcript_path\":\"/home/jmcwilliam/.claude/projects/-mnt-c-GitHub-fractary-cli/76731a0f-cc18-4208-a5bd-2a7450e39003.jsonl\",\"cwd\":\"/mnt/c/GitHub/fractary/cli\",\"permission_mode\":\"bypassPermissions\",\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"proceed\"} ",
   "prompt_short": "{\"session_id\":\"76731a0f-cc18-4208-a5b..."
 }

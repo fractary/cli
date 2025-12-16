@@ -14,7 +14,7 @@ import type {
   ResolvedTool,
   AgentInfo,
   ToolInfo,
-  RegistryConfig,
+  DefinitionRegistryConfig as RegistryConfig,
 } from '@fractary/forge';
 // Dynamic imports to avoid loading SDK and js-yaml at module time
 // import { readYamlConfig } from './migrate-config';

@@ -8,7 +8,7 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as os from 'os';
-import type { ForgeConfig, RegistryConfig } from '@fractary/forge';
+import type { RegistryForgeConfig as ForgeConfig, RegistryConfig } from '@fractary/forge';
 
 /**
  * Get project-level Forge directory (.fractary/plugins/forge/)
