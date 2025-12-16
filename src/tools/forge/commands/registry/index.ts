@@ -20,6 +20,10 @@ export { createRegistryAddCommand } from './registry-add';
 export { createRegistryRemoveCommand } from './registry-remove';
 export { createRegistryListCommand } from './registry-list';
 
+// Cache management commands
+export { createCacheClearCommand } from './cache-clear';
+export { createCacheStatsCommand } from './cache-stats';
+
 // Default exports
 import createInstallCommand from './install';
 import createUninstallCommand from './uninstall';
@@ -31,6 +35,8 @@ import createUpdateCommand from './update';
 import createRegistryAddCommand from './registry-add';
 import createRegistryRemoveCommand from './registry-remove';
 import createRegistryListCommand from './registry-list';
+import createCacheClearCommand from './cache-clear';
+import createCacheStatsCommand from './cache-stats';
 
 /**
  * Create parent registry command
@@ -47,6 +53,20 @@ export function createRegistryCommand(): Command {
   return cmd;
 }
 
+/**
+ * Create parent cache command
+ */
+export function createCacheCommand(): Command {
+  const cmd = new Command('cache');
+
+  cmd
+    .description('Manage manifest cache')
+    .addCommand(createCacheClearCommand())
+    .addCommand(createCacheStatsCommand());
+
+  return cmd;
+}
+
 export default {
   install: createInstallCommand,
   uninstall: createUninstallCommand,
@@ -56,4 +76,5 @@ export default {
   lock: createLockCommand,
   update: createUpdateCommand,
   registry: createRegistryCommand,
+  cache: createCacheCommand,
 };

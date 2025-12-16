@@ -8,8 +8,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createRegistryListCommand = exports.createRegistryRemoveCommand = exports.createRegistryAddCommand = exports.createUpdateCommand = exports.createLockCommand = exports.createSearchCommand = exports.createInfoCommand = exports.createListCommand = exports.createUninstallCommand = exports.createInstallCommand = void 0;
+exports.createCacheStatsCommand = exports.createCacheClearCommand = exports.createRegistryListCommand = exports.createRegistryRemoveCommand = exports.createRegistryAddCommand = exports.createUpdateCommand = exports.createLockCommand = exports.createSearchCommand = exports.createInfoCommand = exports.createListCommand = exports.createUninstallCommand = exports.createInstallCommand = void 0;
 exports.createRegistryCommand = createRegistryCommand;
+exports.createCacheCommand = createCacheCommand;
 const commander_1 = require("commander");
 // Plugin management commands
 var install_1 = require("./install");
@@ -33,6 +34,11 @@ var registry_remove_1 = require("./registry-remove");
 Object.defineProperty(exports, "createRegistryRemoveCommand", { enumerable: true, get: function () { return registry_remove_1.createRegistryRemoveCommand; } });
 var registry_list_1 = require("./registry-list");
 Object.defineProperty(exports, "createRegistryListCommand", { enumerable: true, get: function () { return registry_list_1.createRegistryListCommand; } });
+// Cache management commands
+var cache_clear_1 = require("./cache-clear");
+Object.defineProperty(exports, "createCacheClearCommand", { enumerable: true, get: function () { return cache_clear_1.createCacheClearCommand; } });
+var cache_stats_1 = require("./cache-stats");
+Object.defineProperty(exports, "createCacheStatsCommand", { enumerable: true, get: function () { return cache_stats_1.createCacheStatsCommand; } });
 // Default exports
 const install_2 = __importDefault(require("./install"));
 const uninstall_2 = __importDefault(require("./uninstall"));
@@ -44,6 +50,8 @@ const update_2 = __importDefault(require("./update"));
 const registry_add_2 = __importDefault(require("./registry-add"));
 const registry_remove_2 = __importDefault(require("./registry-remove"));
 const registry_list_2 = __importDefault(require("./registry-list"));
+const cache_clear_2 = __importDefault(require("./cache-clear"));
+const cache_stats_2 = __importDefault(require("./cache-stats"));
 /**
  * Create parent registry command
  */
@@ -56,6 +64,17 @@ function createRegistryCommand() {
         .addCommand((0, registry_list_2.default)());
     return cmd;
 }
+/**
+ * Create parent cache command
+ */
+function createCacheCommand() {
+    const cmd = new commander_1.Command('cache');
+    cmd
+        .description('Manage manifest cache')
+        .addCommand((0, cache_clear_2.default)())
+        .addCommand((0, cache_stats_2.default)());
+    return cmd;
+}
 exports.default = {
     install: install_2.default,
     uninstall: uninstall_2.default,
@@ -65,5 +84,6 @@ exports.default = {
     lock: lock_2.default,
     update: update_2.default,
     registry: createRegistryCommand,
+    cache: createCacheCommand,
 };
 //# sourceMappingURL=index.js.map

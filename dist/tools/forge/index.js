@@ -27,7 +27,7 @@ const agent_create_1 = require("./commands/agent-create");
 const agent_info_1 = require("./commands/agent-info");
 const agent_list_1 = require("./commands/agent-list");
 const agent_validate_1 = require("./commands/agent-validate");
-// Registry commands (Phase 1-3 implementation)
+// Registry commands (Phase 1-4 implementation)
 const registry_1 = require("./commands/registry");
 /**
  * Create and configure the forge command
@@ -44,7 +44,7 @@ function createForgeCommand() {
     forge.addCommand((0, agent_info_1.agentInfoCommand)());
     forge.addCommand((0, agent_list_1.agentListCommand)());
     forge.addCommand((0, agent_validate_1.agentValidateCommand)());
-    // Registry management commands (Phase 1-3)
+    // Registry management commands (Phase 1-4)
     forge.addCommand((0, registry_1.createInstallCommand)());
     forge.addCommand((0, registry_1.createUninstallCommand)());
     forge.addCommand((0, registry_1.createListCommand)());
@@ -53,6 +53,7 @@ function createForgeCommand() {
     forge.addCommand((0, registry_1.createLockCommand)());
     forge.addCommand((0, registry_1.createUpdateCommand)());
     forge.addCommand((0, registry_1.createRegistryCommand)());
+    forge.addCommand((0, registry_1.createCacheCommand)());
     // NOTE: Bundle/Starter management commands temporarily disabled
     // See imports comment above for details
     // const commands = [

@@ -14,6 +14,8 @@ export { createUpdateCommand } from './update';
 export { createRegistryAddCommand } from './registry-add';
 export { createRegistryRemoveCommand } from './registry-remove';
 export { createRegistryListCommand } from './registry-list';
+export { createCacheClearCommand } from './cache-clear';
+export { createCacheStatsCommand } from './cache-stats';
 import createInstallCommand from './install';
 import createUninstallCommand from './uninstall';
 import createListCommand from './list';
@@ -25,6 +27,10 @@ import createUpdateCommand from './update';
  * Create parent registry command
  */
 export declare function createRegistryCommand(): Command;
+/**
+ * Create parent cache command
+ */
+export declare function createCacheCommand(): Command;
 declare const _default: {
     install: typeof createInstallCommand;
     uninstall: typeof createUninstallCommand;
@@ -34,6 +40,7 @@ declare const _default: {
     lock: typeof createLockCommand;
     update: typeof createUpdateCommand;
     registry: typeof createRegistryCommand;
+    cache: typeof createCacheCommand;
 };
 export default _default;
 //# sourceMappingURL=index.d.ts.map
