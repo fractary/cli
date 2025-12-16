@@ -27,7 +27,7 @@ import { agentInfoCommand } from './commands/agent-info';
 import { agentListCommand } from './commands/agent-list';
 import { agentValidateCommand } from './commands/agent-validate';
 
-// Registry commands (Phase 1-2 implementation)
+// Registry commands (Phase 1-3 implementation)
 import {
   createInstallCommand,
   createUninstallCommand,
@@ -36,6 +36,7 @@ import {
   createSearchCommand,
   createLockCommand,
   createUpdateCommand,
+  createRegistryCommand,
 } from './commands/registry';
 
 /**
@@ -57,7 +58,7 @@ export function createForgeCommand(): Command {
   forge.addCommand(agentListCommand());
   forge.addCommand(agentValidateCommand());
 
-  // Registry management commands (Phase 1-2)
+  // Registry management commands (Phase 1-3)
   forge.addCommand(createInstallCommand());
   forge.addCommand(createUninstallCommand());
   forge.addCommand(createListCommand());
@@ -65,6 +66,7 @@ export function createForgeCommand(): Command {
   forge.addCommand(createSearchCommand());
   forge.addCommand(createLockCommand());
   forge.addCommand(createUpdateCommand());
+  forge.addCommand(createRegistryCommand());
 
   // NOTE: Bundle/Starter management commands temporarily disabled
   // See imports comment above for details

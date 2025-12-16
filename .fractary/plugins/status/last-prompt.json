@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-12-16T00:33:46Z",
-  "prompt": "{\"session_id\":\"76731a0f-cc18-4208-a5bd-2a7450e39003\",\"transcript_path\":\"/home/jmcwilliam/.claude/projects/-mnt-c-GitHub-fractary-cli/76731a0f-cc18-4208-a5bd-2a7450e39003.jsonl\",\"cwd\":\"/mnt/c/GitHub/fractary/cli\",\"permission_mode\":\"bypassPermissions\",\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"proceed with all 3\"} ",
+  "timestamp": "2025-12-16T01:05:19Z",
+  "prompt": "{\"session_id\":\"76731a0f-cc18-4208-a5bd-2a7450e39003\",\"transcript_path\":\"/home/jmcwilliam/.claude/projects/-mnt-c-GitHub-fractary-cli/76731a0f-cc18-4208-a5bd-2a7450e39003.jsonl\",\"cwd\":\"/mnt/c/GitHub/fractary/cli\",\"permission_mode\":\"bypassPermissions\",\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"yes\"} ",
   "prompt_short": "{\"session_id\":\"76731a0f-cc18-4208-a5b..."
 }
